@@ -1,0 +1,101 @@
+﻿'['Declare External Routine(s)
+AddVbFile "DebugHelper.vb" 'Defines external rule
+Dim Dbg as New DebugHelper(ThisDoc.Document, SharedVariable)
+Try : 'Dbg.DumpProperties() : 'Dbg.DumpParameters()
+']
+
+'['Toggle all message boxes: 3 Types 
+'1st: toggles all saved message boxes to show values, in this iam
+ShowValueMsg = False
+
+'2nd: toggles "OK" message boxes in 2 specific external rules, Helpful to troubleshoot Parts or Assemblies
+SharedVariable("ShowOkMsgWoodPart") = False
+SharedVariable("ShowOkMsgWoodAsm") = False
+
+'3rd: toggles all Error and Warning message boxes in this iam, Uses Environment Variable from Computer running Inventor
+'Set to "true" for development PC and "false" for Server running Frontier cadflow.
+'Ensures Auto Off for all MsgBoxes when model Is published
+Dim ErrMsg As String = Environ("ILOGIC_ErrMsg")
+If ErrMsg = "true" Then 
+	ShowErrWarnMsg = True
+Else		'If the PC is missing the Environment Variable then ShowErrWarnMsg will be set to false 
+	ShowErrWarnMsg = False
+	'Safety rules, override any true back to false in case on server
+	ShowValueMsg = False	
+	SharedVariable("ShowOkMsgWoodPart") = False
+	SharedVariable("ShowOkMsgWoodAsm") = False
+End If
+']
+
+
+
+
+
+'['GH call VBA routine
+Dbg.Log("AutoSculptRunFull Called: " & ThisDoc.Document.FullFileName)
+' in development the log will write to = "c:\temp\ilogic.log"
+
+'''Reset iProperties for Time and Count, aids for debugging and tracking
+	Try
+		iProperties.Value("Custom", "AutoSculptTimePrior") = iProperties.Value("Custom", "AutoSculptTimeCurrent")
+	Catch
+		iProperties.Value("Custom", "AutoSculptTimePrior") = "-1"
+	End Try
+	iProperties.Value("Custom", "AutoSculptTimeCurrent") = "-1"
+	Try
+		iProperties.Value("Custom", "AutoSculptCountPrior") = iProperties.Value("Custom", "AutoSculptCountCurrent")
+	Catch
+		iProperties.Value("Custom", "AutoSculptCountPrior") = "-1"
+	End Try
+	iProperties.Value("Custom", "AutoSculptCountCurrent") = "-1"
+	
+	StartTime = Now()
+	'InventorVb.RunMacro("CVDMacros", "TestAutoSculpt("Full"))
+	Try
+	'''Call to VBA routine
+		InventorVb.RunMacro("ApplicationProject","m8AutoSculpt_v2","AutoSculptiLogicRunFull")
+		'InventorVb.RunMacro("Watson32BitOffice","m8AutoSculpt","AutoSculptiLogicRunFull")
+	Catch ex As Exception
+		ExFull = ("Fatal error in model trying to run VBA AutoSculpt … " & ThisDoc.PathAndFileName(False) & "\n  Msg: " & ex.Message & "\n   More Info: " & ex.ToString)
+		ExBrief = ("Fatal error in model trying to run VBA AutoSculpt …" & ThisDoc.FileName(True) & "\n  Msg: " & ex.Message)
+		ERRORS = Left(ExBrief,255)
+		iProperties.Value("Custom", "ERRORS") = ERRORS
+		Dbg.Log(ExFull)
+		'Shows full text description as message box durring development	
+		If ShowErrWarnMsg Then	MessageBox.Show(ExFull, "Development Only 'More Info' Message.  From: "& ThisDoc.FileName(True))
+		Dbg.Log("Aborted ExternalRule CallAutoSculpt: Caught Error trying to call VBA RunMacro" & ThisDoc.PathAndFileName(False))
+		Exit Sub
+	End Try
+	
+	Dim ElapsedTime As TimeSpan = Now().Subtract(StartTime)
+	'MessageBox.Show("ElapsedTime: " & ElapsedTime, ThisDoc.FileName(True))
+
+	iProperties.Value("Custom", "AutoSculptTimeCurrent") = CStr(ElapsedTime.TotalSeconds)
+
+'	MessageBox.Show("AutoSculptTimePrior/Current: " & iProperties.Value("Custom", "AutoSculptTimePrior") & "/" & iProperties.Value("Custom", "AutoSculptTimeCurrent") , ThisDoc.FileName(True))
+'	MessageBox.Show("AutoSculptCountPrior/Current: " & iProperties.Value("Custom", "AutoSculptCountPrior") & "/" & iProperties.Value("Custom", "AutoSculptCountCurrent") , ThisDoc.FileName(True))
+'	
+'	MessageBox.Show("AutoSculptTimePrior: " & iProperties.Value("Custom", "AutoSculptTimePrior") & vbCrLf & _
+'	"AutoSculptTimeCurrent: " & iProperties.Value("Custom", "AutoSculptTimeCurrent") & vbCrLf & vbCrLf & _
+'	"AutoSculptCountPrior: " & iProperties.Value("Custom", "AutoSculptCountPrior")  & vbCrLf & _
+'	"AutoSculptCountCurrent: " & iProperties.Value("Custom", "AutoSculptCountCurrent") , ThisDoc.FileName(True))
+
+Dbg.Log("AutoSculptRunFull ElapsedTime: " & CStr(ElapsedTime.TotalSeconds))
+Dbg.Log("AutoSculptRunFull SculptCount: " & iProperties.Value("Custom", "AutoSculptCountCurrent"))
+Dbg.Log("AutoSculptRunFull Completed: " & ThisDoc.Document.FullFileName)
+']
+
+'['Send any caught exceptions to ERRORS and log and Development user
+ERRORS = iProperties.Value("Custom", "ERRORS") 'must update ERRORS variable, values could come from external rule
+Catch ex As Exception
+	ExFull = ("Fatal error in model … " & ThisDoc.PathAndFileName(False) & "\n  Msg: " & ex.Message & "\n   More Info: " & ex.ToString)
+	ExBrief = ("Fatal error in model …" & ThisDoc.FileName(True) & "\n  Msg: " & ex.Message)
+	ERRORS = ERRORS & Left(ExBrief,255)
+	iProperties.Value("Custom", "ERRORS") = ERRORS
+	Dbg.Log("1of1 Catch from ExternalRule Call to AutoSculptiLogicRunFull: " & ExFull)
+	'Shows full text description as message box durring development	
+	If ShowErrWarnMsg Then	MessageBox.Show(ExFull, "Development Only 'More Info' Message.  From: "& ThisDoc.FileName(True))
+End Try
+If ShowErrWarnMsg Then If ERRORS <> "" Then MessageBox.Show(ERRORS, "ERRORS from: "& ThisDoc.FileName(True))
+']
+

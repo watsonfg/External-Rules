@@ -1,0 +1,22 @@
+﻿ 
+
+
+
+myName= ThisApplication.GeneralOptions.UserName
+
+If iProperties.Value("Summary", "Author") <> myName Then
+iProperties.Value("Summary", "Author") = myName
+'MessageBox.Show("The Author iProperty has been updated","an iLogic message for: " & myName)
+End If
+
+If iProperties.Value("Project", "Designer") <> myName Then
+iProperties.Value("Project", "Designer") = myName
+'MessageBox.Show("The Designer iProperty has been updated","an iLogic message for: " & myName)
+End If
+
+
+'iProperties.Value("Summary", "Author") = "CAK"
+iProperties.Value("Project", "Creation Date") = Now
+'iProperties.Value("Project", "Designer") = "CAK"
+iProperties.Value("Project", "Project") = "SEVEN 3.0"
+ 

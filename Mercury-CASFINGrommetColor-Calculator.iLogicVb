@@ -1,0 +1,67 @@
+﻿'''Creator: 		Douglas Wisser
+'''Creation Date:	03.05.2020
+'''Revision:		0
+'''Revision Date:	N/A
+'''Inputs:			Case Finish (CASFIN)
+'''Outputs:			Hardware Finish (GROMFIN) and Errors (ERRORS)
+'''Description:		This function is indended for use with any Mercury storage that utilizes the tonic grommets
+'''					and also features new CASFIN/FACFIN options from 2020 console finish update. Its purpose is to drive the
+'''					correct color grommet for a given case finish. If the supplied finish has not yet been entered,
+'''					the rule will output an error into the Process rule.  In this case, a GROMFIN of 'FQ'
+'''					corresponds to a grey grommet and a GROMFIN of 'BK' corresponds to a charcoal grommet.
+
+
+
+
+FileName = ThisDoc.FileName(True)									'with extension
+
+Dim ERRORS As String = ""											'Initialize ERRORS Text
+Dim GROMFIN As String = ""											'Initialize GROMFIN Text
+Dim CASFIN As String = ""
+
+Try
+
+	CASFIN = iProperties.Value("Custom", "CASFIN")					'Pull in Face Finish from model
+
+Catch
+
+	ERRORS = ERRORS & "ERROR IN MERCURY-CASFINGROMMETCOLOR-CALCULATOR RULE. NO CASFIN IPROPERTY FOUND IN MODEL " & FileName & " /n"
+	
+End Try
+
+Select Case CASFIN
+
+Case "BK"					'Black
+	GROMFIN = "CH"
+Case "CH"					'Charcoal
+	GROMFIN = "CH"
+Case "DT"					'Studio Teak
+	GROMFIN = "CH"
+Case "FCZ"					'Fawn Cypress
+	GROMFIN = "CH"
+Case "FJ"					'Frosty White
+	GROMFIN = "FQ"
+Case "FLM"					'Field Elm
+	GROMFIN = "FQ"
+Case "FQ"					'Fashion Grey
+	GROMFIN = "FQ"
+Case "GEL"					'Grey Elm
+	GROMFIN = "FQ"
+Case "GY"					'Satin Grey
+	GROMFIN = "CH"
+Case "M2"					'Dark Champagne
+	GROMFIN = "FQ"
+Case "PPE"					'Phantom Pearl
+	GROMFIN = "FQ"
+Case "SG"					'Slate
+	GROMFIN = "CH"
+Case "TBD"					'TBD FOR TESTING
+	GROMFIN = "FQ"
+Case "WA"					'FQ (White Aluminum)
+	GROMFIN = "FQ"
+Case Else
+	ERRORS = ERRORS & "ERROR IN MERCURY-CASFINGROMMETCOLOR-CALCULATOR RULE. SELECTED CASFIN IS NOT IN THE MATRIX. PLEASE LOAD CASFIN AND PUBLISH RULE. " & FileName & " /n"
+End Select
+
+iProperties.Value("Custom", "ERRORS") = iProperties.Value("Custom", "ERRORS") & ERRORS
+iProperties.Value("Custom", "GROMFIN") = GROMFIN

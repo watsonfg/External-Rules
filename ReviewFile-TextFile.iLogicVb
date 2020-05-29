@@ -1,0 +1,597 @@
+﻿Sub Main()
+'''Creator: Cory Miller
+'''Date Made: 1/14/2016
+'''Revision Number: 2
+'''Rev 2: Redesigned the way the text file forms and lists all checks done - Chris Kuchman 2/10/2016
+'''Description: This rules purpose is to serve as a generic file validation and a tool to summon more specific rules
+'''Was created as a part of model/coding standards
+
+'['Text File Initialization
+'This text file records if the rule completes and is used as the final file shown
+System.IO.File.WriteAllText("c:\temp\ReviewFile.txt",String.Empty)		'Creates & Clears out a text file to show results
+TextFileReview = "c:\temp\ReviewFile.txt"										'Specifies file name that Review rules write to
+
+'This text file stores all checks made
+System.IO.File.WriteAllText("c:\temp\ReviewChecks.txt",String.Empty)		'Creates & Clears out a text file to show results
+TextFileChecks = "c:\temp\ReviewChecks.txt"										'Specifies file name that Review rules write to
+
+WriteText(TextFileChecks, "----------------------------------------------------------------------------------------", 1)
+WriteText(TextFileChecks, "----THINGS CHECKED (DOES NOT IMPLY PASSED)----", 1)
+
+'This is the text file that records all issues found by the review rules
+System.IO.File.WriteAllText("c:\temp\ReviewIssues.txt",String.Empty)		'Creates & Clears out a text file to show results
+TextFileIssues = "c:\temp\ReviewIssues.txt"										'Specifies file name that Review rules write to
+
+WriteText(TextFileIssues, "----------------------------------------------------------------------------------------", 1)
+WriteText(TextFileIssues, "----ISSUES FOUND----")
+']
+
+'['Define Basic Variables
+Dim FileName As String = ThisDoc.FileName(False)	'(True/False) means with/without file extension. This document uses mostly false for logic purposes
+Dim FileNameLong As String = ThisDoc.FileName(True)
+Dim PartNumber As String = iProperties.Value("Project", "Part Number")
+Dim ModelDescription As String = iProperties.Value("Project", "Description")
+Dim User As String = ThisApplication.GeneralOptions.UserName
+Dim Author As String = iProperties.Value("Summary", "Author")
+Dim Designer As String = iProperties.Value("Project", "Designer")
+Dim TodaysDate As Date = Now
+Dim CreationDate As Date = iProperties.Value("Project", "Creation Date")
+Dim RevNumber As String = iProperties.Value("Project", "Revision Number")
+Dim ProjectDescription As String = iProperties.Value("Project", "Project")
+Dim SelfReviewRuleRecommendation As String = ""
+CountCheck = 0 'used to make sure we dont waste everyones time in loops of inescapable popups
+']
+
+'['Name Validation
+
+'['Character Limit Check
+CharacterLimitCheck:
+	If Len(PartNumber) > 15 Then
+		ResponseNameLength = InputBox("Part number is more than 15 characters long.  Frontier does not allow this. "& vbCrLf & "Please reduce the number of characters too 15", "Part Number", iProperties.Value("Project", "Part Number"))
+		If ResponseNameLength = "" Then
+			WriteText(TextFileIssues,"Part Name may be to long. Please verify.")
+			WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+		ElseIf ResponseNameLength = PartNumber Then
+			Goto CharacterLimitCheck
+		Else
+			iProperties.Value("Project", "Part Number") = ResponseNameLength
+			PartNumber = ResponseNameLength'updates value of variable for continued use throughout rule if changed
+			Goto CharacterLimitCheck
+		End If
+	ElseIf Len(PartNumber) = 0 Then
+		ResponseNameLength = InputBox("Part number is empty.  Don't be a dummy.", "Part Number", iProperties.Value("Project", "Part Number"))
+		If ResponseNameLength = "" Then
+			Goto CharacterLimitCheck
+		Else
+			iProperties.Value("Project", "Part Number") = ResponseNameLength
+			PartNumber = ResponseNameLength'updates value of variable for continued use throughout rule if changed
+			Goto CharacterLimitCheck
+		End If
+		'character limit passes check
+	End If
+WriteText(TextFileChecks, "Part Name - Under 15 characters", 1)
+']
+
+'['RuleException Part Case Check
+RuleException = ""
+If PartNumber Like "#######" Then
+	RuleException = "Purchase Part"
+ElseIf PartNumber Like "########" Then
+	RuleException = "Configured Purchase Part"
+ElseIf PartNumber = "CUTSHEET" Then
+	RuleException = "Cut Sheet"
+ElseIf PartNumber = "CutFabric*" Then
+	RuleException = "Cut Fabric"
+ElseIf PartNumber = "CUTTAPE" Then
+	RuleException = "Cut Tape"
+ElseIf PartNumber = "S##-####" Then
+	RuleException = "Studio Top Level"
+ElseIf PartNumber = "CUTTOP" Then
+	SelfReviewRuleRecommendation = "ReviewCuttop"
+End If
+']
+
+'['ERP TEMPLATE RuleException Part Case Check
+Try
+	ERP_Template = iProperties.Value("Custom", "ERP_TEMPLATE")
+	If ERP_Template = "" Then
+		'no RuleExceptions
+	ElseIf ERP_Template = "OPER_OVERRIDE" Then
+		If PartNumber Like "*-NO" Then
+			'ok
+		Else
+			If CountCheck = 0 Then
+				ResponseERP_Template = InputBox("If you are using ERP_Template the PartNumber should be the PartName and then -NO" & vbCrLf & "This model should be named: " & PartNumber & "-NO.  What would you like to name it?", "ERP_Template Validation", iProperties.Value("Project", "Part Number"))
+				If ResponseERP_Template = "" Then
+					CountCheck = CountCheck+1
+					Goto CharacterLimitCheck
+				ElseIf ResponseERP_Template = PartNumber
+					CountCheck = CountCheck+1
+					Goto CharacterLimitCheck
+				Else
+					iProperties.Value("Project", "PartNumber") = ResponseERP_Template
+					PartNumber = ResponseERP_Template
+					CountCheck = CountCheck+1
+					Goto CharacterLimitCheck
+				End If
+			ElseIf CountCheck < 3 Then
+				ResponseERP_Template = InputBox("If you are using ERP_Template the PartNumber should be the Part Name and then -NO" & vbCrLf & "This model should be named: " & PartNumber & "-NO.  What would you like to name it?", "ERP_Template Validation", iProperties.Value("Project", "Part Number"))
+				If ResponseERP_Template = "" Then
+					CountCheck = CountCheck+1
+					Goto CharacterLimitCheck
+				ElseIf ResponseERP_Template = PartNumber
+					CountCheck = CountCheck+1
+					Goto CharacterLimitCheck
+				Else
+					iProperties.Value("Project", "PartNumber") = ResponseERP_Template
+					PartNumber = ResponseERP_Template
+					CountCheck = CountCheck+1
+					Goto CharacterLimitCheck
+				End If
+			Else
+				ResponseERP_TemplateContinuation = MessageBox.Show("You have been stuck here a while.  Would you like to continue trying?", "ERP_Template Validation",MessageBoxButtons.YesNo)
+				If ResponseERP_TemplateContinuation = vbYes Then
+					ResponseERP_Template = InputBox("If you are using ERP_Template the PartNumber should be the Part Name and then -NO" & vbCrLf & "This model should be named: " & PartNumber & "-NO.  What would you like to name it?", "ERP_Template Validation", iProperties.Value("Project", "Part Number"))
+					If ResponseERP_Template = "" Then
+						'cancel was selected
+						WriteText(TextFileIssues,"ERP Template and PartName don't match rule logic. Please verify.")
+						WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+					ElseIf ResponseERP_Template = PartNumber
+						Goto CharacterLimitCheck
+					Else
+						iProperties.Value("Project", "PartNumber") = ResponseERP_Template
+						PartNumber = ResponseERP_Template
+						Goto CharacterLimitCheck
+					End If
+				Else
+					WriteText(TextFileIssues,"ERP Template and PartName don't match rule logic. Please verify.")
+					WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+				End If
+			End If
+		End If
+		Try
+			ERP_Operation = Str(iProperties.Value("Custom", "ERP_OPERATION"))
+			If ERP_Operation = "" Then
+				WriteText(TextFileIssues,"There is no ERP_OPERATION for an OPER_OVERRIDED assembly. Please fix ERP_OPERATION.")
+				WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+			End If
+		Catch
+			WriteText(TextFileIssues,"There is no ERP_OPERATION for an OPER_OVERRIDED assembly. Please fix ERP_OPERATION.")
+			WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+		End Try
+	ElseIf ERP_Template = "NONE" Then
+		If PartNumber Like "*-NO" Then
+			'ok
+		Else
+			If CountCheck = 0 Then
+				ResponseERP_Template = InputBox("If You Are Using ERP_Template The PartNumber Should Be The PartName And Then -NO" & vbCrLf & "This Model Should Be Named: " & PartNumber & "-NO.  What Would You Like To Name It?", "ERP_Template Validation", iProperties.Value("Project", "Part Number"))
+				If ResponseERP_Template = "" Then
+					'cancel was selected
+					WriteText(TextFileIssues,"ERP Template and PartName don't match rule logic. Please verify.")
+					WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+				ElseIf ResponseERP_Template = PartNumber
+					CountCheck = CountCheck+1
+					Goto CharacterLimitCheck
+				Else
+					iProperties.Value("Project", "PartNumber") = ResponseERP_Template
+					PartNumber = ResponseERP_Template
+					CountCheck = CountCheck+1
+					Goto CharacterLimitCheck
+				End If
+			ElseIf CountCheck < 3 Then
+				ResponseERP_Template = InputBox("If you are using ERP_Template the PartNumber should be the PartName and then -NO" & vbCrLf & "This model should be named: " & PartNumber & "-NO.  What would you like to name it?", "ERP_Template Validation", iProperties.Value("Project", "Part Number"))
+				If ResponseERP_Template = "" Then
+					'cancel was selected
+					WriteText(TextFileIssues,"ERP Template and PartName don't match rule logic. Please verify.")
+					WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+				ElseIf ResponseERP_Template = PartNumber
+					CountCheck = CountCheck+1
+					Goto CharacterLimitCheck
+				Else
+					iProperties.Value("Project", "PartNumber") = ResponseERP_Template
+					PartNumber = ResponseERP_Template
+					CountCheck = CountCheck+1
+					Goto CharacterLimitCheck
+				End If
+			Else
+				ResponseERP_TemplateContinuation = MessageBox.Show("You have been stuck here a while.  Would you like to continue trying?", "ERP_Template Validation",MessageBoxButtons.YesNo)
+				If ResponseERP_TemplateContinuation = vbYes Then
+					ResponseERP_Template = InputBox("If you are using ERP_Template the PartNumber should be the PartName and then -NO" & vbCrLf & "This model should be named: " & PartNumber & "-NO.  What would you like to name it?", "ERP_Template Validation", iProperties.Value("Project", "Part Number"))
+					If ResponseERP_Template = "" Then
+						'cancel was selected
+						WriteText(TextFileIssues,"ERP Template and PartName don't match rule logic. Please verify.")
+						WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+					ElseIf ResponseERP_Template = PartNumber
+						CountCheck = CountCheck
+						Goto CharacterLimitCheck
+					Else
+						iProperties.Value("Project", "Part Number") = ResponseERP_Template
+						PartNumber = ResponseERP_Template
+						CountCheck = CountCheck
+						Goto CharacterLimitCheck
+					End If
+				Else
+					WriteText(TextFileIssues,"ERP Template and PartName don't match rule logic. Please verify.")
+					WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+				End If
+			End If
+		End If
+	Else
+			WriteText(TextFileIssues,"Not a valid ERP Template.  Please use: NONE, OPER_OVERRIDE, or blank")
+			WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+	End If
+	WriteText(TextFileChecks, "ERP_TEMPLATE - ERP_OPERATION and Part Name are correct", 1)
+Catch
+	'No ERP_Template Value
+End Try			
+']
+
+'['Standardized Part Name Case Check
+If RuleException = "" And SelfReviewRuleRecommendation = "" Then
+	Dim FileNameSuffix As String 
+	Dim FileNameType As String
+	FileNameSuffix = Right(FileName,3) 			'takes last three characters of the file name. 
+	FileNameType = Right(FileNameLong,3)		'takes the file type
+	
+	Select Case FileNameSuffix
+		Case = "-CP" 'cut part, could be wood or steel
+			Dim oDoc As Document
+			oDoc = ThisDoc.Document
+			If oDoc.ComponentDefinition.Type = 150995200 Then  'number definition type of a sheet metal file type
+				SelfReviewRuleRecommendation = "ReviewSteelCutpart"
+			Else	'wood tpanel
+				SelfReviewRuleRecommendation = "ReviewTPanel"
+			End If
+		Case = "-CT" 'cut tube
+			SelfReviewRuleRecommendation = "ReviewSteelCutTube"
+		Case = "-PM" 'pem assembly
+			SelfReviewRuleRecommendation = "ReviewSteelAsm"
+		Case = "-WD" 'weld assembly
+			SelfReviewRuleRecommendation = "ReviewSteelAsm"
+		Case = "-PP" 'powder assembly
+			SelfReviewRuleRecommendation = "ReviewSteelAsm"
+		Case = "-AS" 'steel assembly
+			SelfReviewRuleRecommendation = "ReviewSteelAsm"
+		Case = "-AF" 'fabric assembly
+			RuleException = "Fabric"
+		Case = "-CS" 'cut sheet
+			RuleException = "Cut Sheet"
+		Case = "-NO" 
+			RuleException = "ERP Template Part"
+		Case Else
+			RuleException = "Unknown Part Type"
+	End Select
+End If
+
+If FileName = PartNumber Then
+	'ok
+ElseIf Not RuleException  = "" And Not SelfReviewRuleRecommendation = "ReviewTPanel" Then
+	'addresses common parts that have a different part name than file name like cuttops
+ElseIf SelfReviewRuleRecommendation = "ReviewCuttop" Then	
+	'addresses common parts that have a different part name than file name like cuttops.  Specific clairifaction for cuttops added 2/29/2016 by CLM
+Else
+	ResponseFileNamePartNumberMatch = MessageBox.Show("File Name and PartNumber don't match. Would you like to change it?" & vbCrLf & "If its a studio wood part they should be different.", "Current Part Number:",MessageBoxButtons.YesNo)
+	If ResponseFileNamePartNumberMatch = vbYes Then
+   		Response2FileNamePartNumberMatch = InputBox("Edit Part Number", "Part Number", iProperties.Value("Project", "Part Number"))
+    	If Response2FileNamePartNumberMatch = "" Then
+	      		WriteText(TextFileIssues,"Part Name doesn't match normal naming scheme. Please verify part name.")
+				WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+    	Else
+      		iProperties.Value("Project", "Part Number") = Response2FileNamePartNumberMatch
+			PartNumber = Response2FileNamePartNumberMatch 'updates value of variable for continued use throughout rule if changed
+			Goto CharacterLimitCheck
+   		End If
+   	Else
+		'do nothing
+ 	End If
+End If
+
+WriteText(TextFileChecks, "File Name - PartNumber matches and uses a correct suffix", 1)
+']			
+
+'['Model Description Validation
+DescriptionCheck:
+If ModelDescription = "" Then
+	ResponseModelDescription = InputBox("Part description is blank" & vbCrLf & "Please edit part description", "Description", iProperties.Value("Project", "Description"))
+	If ResponseModelDescription = "" Then
+       WriteText(TextFileIssues,"Description is blank. Please create a description")
+	   WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+    Else
+       	iProperties.Value("Project", "Description") = ResponseModelDescription
+		ModelDescription = ResponseModelDescription
+    End If
+Else
+	'ok, there is a description of some sorts
+End If
+
+If Len(ModelDescription) > 30 Then
+	ResponseModelDescriptionLength = InputBox("Part description is to Long" & vbCrLf & "Please edit part description to be below 30 characters", "Description", iProperties.Value("Project", "Description"))
+	If ResponseModelDescriptionLength = "" Then
+       	 WriteText(TextFileIssues,"Description is to long. Please reduce to less than 30 characters for frontier")
+		 WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+    Else
+       	iProperties.Value("Project", "Description") = ResponseModelDescriptionLength
+		ModelDescription = ResponseModelDescriptionLength
+		Goto DescriptionCheck
+    End If
+Else
+	'ok, there is a description of correct lengths
+End If
+
+WriteText(TextFileChecks, "Description - Is present and under the character limit", 1)
+']
+
+'['Model Author/Designer Validation
+If Author = Designer Then
+	If Author = User Then
+		'ok
+	Else
+		ResponseAuthorDesigner = MessageBox.Show("You are not the Author and Designer. Would you like them to be updated?", "Author/DesignerValidation",MessageBoxButtons.YesNo)
+		If ResponseAuthorDesigner = vbYes Then
+			iProperties.Value("Summary", "Author") = User
+			iProperties.Value("Project", "Designer") = User
+		Else
+			WriteText(TextFileIssues,"Author/Designer may not be correct. Please verify")
+			WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+		End If
+	End If
+Else
+	If Not Designer = User Then
+		ResponseAuthorDesigner = MessageBox.Show("You are not the Designer. Would you like it to be updated?", "Author/DesignerValidation",MessageBoxButtons.YesNo)
+		If ResponseAuthorDesigner = vbYes Then
+			iProperties.Value("Project", "Designer") = User
+		Else
+			 WriteText(TextFileIssues,"Designer does not match User. Please Verify")
+			 WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+		End If
+	End If
+	If Not Author = User Then
+		ResponseAuthorDesigner = MessageBox.Show("You are not the Author. Would you like it to be updated?", "Author/DesignerValidation",MessageBoxButtons.YesNo)
+		If ResponseAuthorDesigner = vbYes Then
+			iProperties.Value("Project", "Author") = User
+		Else
+			 WriteText(TextFileIssues,"Author does not match User. Please Verify")
+			 WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+		End If
+	End If
+End If
+
+WriteText(TextFileChecks, "Author - Is it the current user", 1)
+']
+
+'['Model Creation Date Validation
+Dim AllowableTimePass As Integer = DateDiff("d", CreationDate, TodaysDate)
+Dim TimeLapse As Integer = 31 'one month
+ReasonableTime = True
+	If AllowableTimePass > TimeLapse
+		ReasonableTime = False
+	End If
+	
+If DateDiff("d",CreationDate, TodaysDate) < 0 Then
+	MessageBox.Show("How did you make this in the future? Please share your time machine with me! Please set a realistic Creation Date", "Creation Date")
+	WriteText(TextFileIssues,"Part was made in the future. You MUST share your time machine with me.")
+	WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+ElseIf Not ReasonableTime Then
+	ResponseCreationDate = MessageBox.Show("Part was created more than a month ago. Would you like to update Creation Date to Current Date? ", "Creation Date",MessageBoxButtons.YesNo)
+	If ResponseCreationDate = vbYes Then
+		iProperties.Value("Project", "Creation Date") = Now
+	Else
+		 WriteText(TextFileIssues,"Please verify the creation date.")
+		 WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+	End If
+Else
+	'ok creation date is reasonable... hopefully
+End If
+
+WriteText(TextFileChecks, "Creation Date - Is the date recent", 1)
+']
+
+'['Model Rev Number Validation
+If PartNumber Like "S##?####*" Then
+	If Not RevNumber = "" Then
+		ResponseRevNumber = InputBox("Rev Number Is " & RevNumber & ".  This appears to be a Studio Part.  Is the Rev Number correct?", iProperties.Value("Project", "Revision Number"))
+		If ResponseRevNumber = "" Then
+			'do nothing
+		Else
+			iProperties.Value("Project", "Revision Number") = ResponseRevNumber
+		End If
+	Else
+		'ok REV is blank and is likely correct for a studio part
+	End If
+ElseIf ReasonableTime
+	If RevNumber = "" Then 
+		'ok
+	Else
+		ResponseRevNumber = InputBox("Rev Number Is " & RevNumber & ".  This appears to be a new part.  Is the Rev Number correct?", iProperties.Value("Project", "Revision Number"))
+		If ResponseRevNumber = "" Then
+			 WriteText(TextFileIssues,"Please verify the Revision Number")
+			 WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+		Else
+			iProperties.Value("Project", "Revision Number") = ResponseRevNumber
+		End If
+	End If
+Else
+	If RevNumber = "" Then
+	ResponseRevNumber = InputBox("Rev Number Is " & RevNumber & ".  This appears to be an old part.  Is the Rev Number correct?", iProperties.Value("Project", "Revision Number"))
+		If ResponseRevNumber = "" Then
+			 WriteText(TextFileIssues,"Please verify the Revision Number")
+			 WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+		Else
+			iProperties.Value("Project", "Revision Number") = ResponseRevNumber
+		End If
+	End If
+End If
+
+WriteText(TextFileChecks, "Revision Number - Does it seem high", 1)
+']
+
+'['Model Project Validation
+If ProjectDescription = "" Then
+	ResponseProjectDescription = InputBox("Project field is blank" & vbCrLf & "Please add a project", "Project", iProperties.Value("Project", "Project")) 
+	If ResponseProjectDescription = "" Then
+		If PartNumber Like "S##?####*" Then
+			'do nothing its a studio
+		Else
+			WriteText(TextFileIssues,"Project field is blank.  Please fill in what product line the part is for.")
+			WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+		End If
+	Else
+		iProperties.Value("Project", "Project") = ResponseProjectDescription
+	End If
+End If
+
+WriteText(TextFileChecks, "Project - Is it filled out", 1)
+']
+
+'['Create Self Review Options
+Dim SelfReviewValidationTypes As New ArrayList
+	SelfReviewValidationTypes.Add("None")
+	SelfReviewValidationTypes.Add("ReviewSteelAsm")
+	SelfReviewValidationTypes.Add("ReviewSteelCutpart")
+	SelfReviewValidationTypes.Add("ReviewTPanel-TextFile")
+	SelfReviewValidationTypes.Add("ReviewCuttop")
+	SelfReviewValidationTypes.Add("ReviewSteelCutTube")
+	'SelfReviewValidationTypes.Add("Fabric")
+']
+
+'['SelfReviewRuleRecommendation Summons
+If SelfReviewRuleRecommendation = "" Then
+	SelfReviewRuleRecommendationGoTo:
+	SelfReviewRuleRecommendation = InputListBox("Unable to determine which self review to recommend. Please select an option", SelfReviewValidationTypes, "NONE", Title := "Self Review Validation Selection")
+	'SelfReviewRuleRecommendation = ResponseSelfReviewSelect
+End If
+
+If Not RuleException = "" Then
+	WriteText(TextFileReview,"File Review rule has detected a file type exception.  These rules cannot easily review the filetype of " & RuleException & ".  Please throughly look this part over.")
+End If
+
+If SelfReviewRuleRecommendation = "None" Then
+	WriteText(TextFileReview,"Part specific review rule was not ran.")
+ElseIf SelfReviewRuleRecommendation = "" Then
+	WriteText(TextFileReview,"Part specific review rule was not ran.")
+Else
+	ResponseRunRule = MessageBox.Show("It is recommended you run the " & SelfReviewRuleRecommendation & " rule.  Would you like to run it?", "Run External Rule", MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button1)
+	If ResponseRunRule = vbYes Then
+		Try
+			iLogicVb.RunExternalRule(SelfReviewRuleRecommendation)
+		Catch
+			MessageBox.Show(SelfReviewRuleRecommendation & " has not yet been completed", SelfReviewRuleRecommendation)
+		End Try
+	ElseIf ResponseRunRule = vbNo Then
+		ResponseRunRule2 = MessageBox.Show("Would you like to choose a different rule to run?", "Run External Rule", MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button1)
+		If ResponseRunRule2 = vbYes Then
+			Goto SelfReviewRuleRecommendationGoTo
+		Else
+			WriteText(TextFileReview,"Part specific review rule was not ran.")
+		End If
+	Else
+		WriteText(TextFileReview,"Part specific review rule was not ran.")
+	End If
+End If
+']
+
+'['Opens result file
+'''LMP edit to remove panda 2/9/15
+WriteText(TextFileReview, "The ReviewFile rule has successfully finished running.")
+
+CombineTextFiles(TextFileReview, TextFileIssues)
+CombineTextFiles(TextFileReview, TextFileChecks)
+
+'''Lucas hates pandas
+WriteText(TextFileReview,"----------------------------------------------------------------------------------------" & vbCrLf & _
+"" & vbCrLf & _
+"__________¶¶_¶¶__¶¶_¶¶_" & vbCrLf & _
+"_________¶¶_¶¶_¶¶_¶¶_¶¶¶" & vbCrLf & _ 
+"_____¶¶¶¶¶____________¶¶¶¶¶¶¶" & vbCrLf & _ 
+"___¶¶¶¶¶_______________¶¶¶¶¶¶¶" & vbCrLf & _ 
+"__¶¶¶¶¶__________________¶¶¶¶¶" & vbCrLf & _ 
+"__¶¶¶¶____________________¶¶¶" & vbCrLf & _
+"___¶¶______________________¶¶¶" & vbCrLf & _ 
+"___¶________________________¶¶¶¶" & vbCrLf & _ 
+"__¶¶_____¶¶¶______¶¶________¶¶¶¶¶¶¶" & vbCrLf & _ 
+"__¶_____¶¶¶¶_____¶¶¶¶¶______¶¶¶¶¶¶_¶" & vbCrLf & _ 
+"__¶____¶¶¶¶¶____¶¶¶¶¶¶¶¶____¶¶¶¶¶¶__¶" & vbCrLf & _ 
+"__¶¶__¶¶¶¶¶______¶¶¶¶¶¶¶___¶¶¶¶¶¶¶___¶" & vbCrLf & _ 
+"___¶__¶¶¶__________¶¶¶¶___¶¶¶¶¶¶¶¶¶___¶" & vbCrLf & _ 
+"___¶¶____________________¶¶¶¶¶¶¶¶¶¶___¶¶¶" & vbCrLf & _ 
+"___¶¶¶_____¶¶¶¶¶¶_______¶¶¶¶¶¶¶¶¶¶¶___¶¶¶¶" & vbCrLf & _ 
+"___¶¶¶¶¶___¶¶¶¶¶¶_____¶¶¶¶¶¶¶¶¶¶¶¶¶__¶¶¶¶¶¶" & vbCrLf & _ 
+"___¶¶¶¶¶¶¶_________¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶__¶¶¶¶¶¶¶¶" & vbCrLf & _ 
+"___¶¶¶¶¶¶¶¶__¶¶¶___¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶_¶¶¶¶¶¶¶¶¶" & vbCrLf & _
+"____¶¶¶¶¶¶¶¶¶¶¶¶__¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶" & vbCrLf & _ 
+"____¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶¶ ¶¶¶¶¶¶¶¶¶¶" & vbCrLf & _ 
+"____¶¶¶¶¶¶¶¶¶_¶¶¶¶¶¶¶_¶¶¶¶¶¶¶¶¶¶¶ ¶¶¶¶¶¶¶¶" & vbCrLf & _ 
+"__¶¶¶¶¶¶¶¶¶¶¶_________¶¶¶¶¶¶¶¶¶¶¶ ¶¶¶¶¶" & vbCrLf & _ 
+"__¶¶¶¶¶¶¶¶¶¶_________¶¶¶¶¶¶¶¶¶¶¶" & vbCrLf & _ 
+"___¶¶¶¶¶¶¶_________¶¶¶¶¶¶¶¶¶¶¶¶" & vbCrLf & _ 
+"___________________¶¶¶¶¶¶¶¶¶¶¶" & vbCrLf & _ 
+"___________________¶¶¶¶¶¶¶¶¶¶" & vbCrLf)
+
+​
+If System.IO.File.Exists("C:\temp\ReviewFile.txt") = True Then
+    Process.Start("C:\temp\ReviewFile.txt")
+Else
+    MsgBox("Error in Result file. Good luck figuring out Chris's code to fix it")
+End If
+']
+End Sub
+
+Function WriteText(File, Text, Optional EndWithNewLines = 2)
+'''Creator: Chris Kuchman
+'''Date Made: 1/27/2016
+'''Date Updated: 2/6/2016 - CAK
+'''Description: This function is used to write text to a text file. The first arguement is the specific text file you
+'''are writing to and the second is the string you want to pass. If you want the string to be broken up into seperate
+'''lines then add a \n to the string line. By default the string will add 2 new lines between each new string added,
+'''but if you want to add less or more new lines then pass a third argument with the number of new lines generated.
+'''(0 will just append the line to the last line)
+
+'Sets a stream to pass the text into the notepad file (filestreams only do btyes so we need a stream writer to convert)
+Dim fs As New System.IO.FileStream(File, System.IO.FileMode.Append, System.IO.FileAccess.Write)
+Dim theLog As New System.IO.StreamWriter(fs)
+
+'Breaks the string up into new lines
+Dim StringArray() As String = Split(Text, "\n ")
+
+'For each split string, write to the file and add a new line (except for the very last line)
+For i As Integer = 0 To StringArray.Length - 1
+	If i < StringArray.Length - 1  Then
+		theLog.WriteLine(StringArray(i))
+	Else
+		theLog.Write(StringArray(i)) 'Write will not add a new line by default like WriteLine
+	End If
+Next
+
+Dim j As Integer = 0
+
+'Add the number of new lines passed into the optional parameter, will loop once if the default value is used
+While EndWithNewLines > j
+	theLog.WriteLine()
+	j += 1
+End While
+​
+'Closes the stream
+theLog.Close()
+End Function
+
+
+Function CombineTextFiles(FirstFile, SecondFile)
+'''Creator: Chris Kuchman
+'''Date Made: 2/25/2016
+'''Description: This function is used to combine multiple text files into one file. The first file will be followed by
+'''the second file.
+
+'Sets a stream to read the text of the second file (filestreams only do btyes so we need a stream writer to convert)
+Dim fs As New System.IO.FileStream(SecondFile, System.IO.FileMode.Open, System.IO.FileAccess.Read)
+Dim theLog As New System.IO.StreamReader(fs)
+
+'Stores all of the text in the second file into a string
+SecondFileContents = theLog.ReadToEnd()
+​
+'Closes the stream not that the text is stored in a string
+theLog.Close()
+
+'Writes the text of the second file ot the first file
+WriteText(FirstFile, SecondFileContents, 1)
+
+End Function 

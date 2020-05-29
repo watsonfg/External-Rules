@@ -1,0 +1,23 @@
+﻿If RuleArguments.Exists("RuleArg1") Then
+	'show the value
+	RuleArg1Value = RuleArguments("RuleArg1")
+	MessageBox.Show("RuleArg1 exists and has value: " & RuleArg1Value , ThisDoc.FileName(True))
+Else
+	MessageBox.Show("RuleArg1 doesn't exist" , ThisDoc.FileName(True))
+End If
+
+If RuleArguments.Exists("RuleArg2") Then
+	'show the value
+	RuleArg2Value = RuleArguments("RuleArg2")
+	MessageBox.Show("RuleArg2 exists and has value: " & RuleArg2Value , ThisDoc.FileName(True))
+Else
+	MessageBox.Show("RuleArg2 doesn't exist" , ThisDoc.FileName(True))
+End If
+
+ReturnSomeValues = True
+If ReturnSomeValues Then
+	'Create the return value here...
+		
+	'create a shared variable to return the value
+	SharedVariable("ReturnedExternalRuleValue") = "TestReturn123"
+End If

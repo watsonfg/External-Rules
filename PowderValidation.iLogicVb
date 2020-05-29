@@ -1,0 +1,31 @@
+﻿FileName = ThisDoc.FileName(True)		 'with extension
+
+Dim NETDEPTH As Double = iProperties.Value("Custom", "NETDEPTH")
+Dim NETHEIGHT As Double = iProperties.Value("Custom", "NETHEIGHT")
+Dim NETWIDTH As Double = iProperties.Value("Custom", "NETWIDTH")
+
+Dim NetDimensions As New ArrayList
+
+NetDimensions.Add(NETDEPTH)
+NetDimensions.Add(NETHEIGHT)
+NetDimensions.Add(NETWIDTH)
+
+NetDimensions.Sort()
+
+LENGTH = NetDimensions(2)
+HEIGHT = NetDimensions(1)
+WIDTH = NetDimensions(0)
+
+If LENGTH > 96 Then
+	WARNINGS = WARNINGS & "At " & LENGTH & " inches, the part may be too long to fit into the powder oven (I:" & FileName & ")\n"
+End If
+
+If HEIGHT > 56 Then
+	WARNINGS = WARNINGS & "At " & HEIGHT & " inches, the part may be too height to fit into the powder oven (I:" & FileName & ")\n"
+End If
+
+If WIDTH > 27 Then
+	WARNINGS = WARNINGS & "At " & WIDTH & " inches, the part may be too wide To fit into the powder oven (I:" & FileName & ")\n"
+End If
+
+iProperties.Value("Custom", "WARNINGS") = WARNINGS

@@ -1,0 +1,2910 @@
+﻿ Sub Main()
+'['Text File Initialization
+'This text file records if the rule completes and is used as the final file shown
+System.IO.File.WriteAllText("c:\temp\CostingTextFile.txt",String.Empty)		'Creates & Clears out a text file to show results
+CostingTextFile = "c:\temp\CostingTextFile.txt"										'Specifies file name that Review rules write to
+']
+
+'['Body
+TopLevelDoc = ThisApplication.ActiveDocument
+ThisApplication.CommandManager.ControlDefinitions.Item("AppUpdateMassPropertiesCmd").Execute
+
+RecursiveCosting(TopLevelDoc, CostingTextFile)
+']
+
+'['Close File
+
+FinalLines = "||====================================================================||" & vbNewLine
+FinalLines = FinalLines & "||//$\\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\//$\\||" & vbNewLine
+FinalLines = FinalLines & "||(100)==================| FEDERAL RESERVE NOTE |================(100)||" & vbNewLine
+FinalLines = FinalLines & "||\\$//        ~         '------========--------'                \\$//||" & vbNewLine
+FinalLines = FinalLines & "||<< /        /$\              // ____ \\                         \ >>||" & vbNewLine
+FinalLines = FinalLines & "||>>|  12    //L\\            // ///..) \\         L38036133B   12 |<<||" & vbNewLine
+FinalLines = FinalLines & "||<<|        \\ //           || <||  >\  ||                        |>>||" & vbNewLine
+FinalLines = FinalLines & "||>>|         \$/            ||  $$ --/  ||        One Hundred     |<<||" & vbNewLine
+FinalLines = FinalLines & "||<<|      L38036133B        *\\  |\_/  //* series                 |>>||" & vbNewLine
+FinalLines = FinalLines & "||>>|  12                     *\\/___\_//*   1989                  |<<||" & vbNewLine
+FinalLines = FinalLines & "||<<\      Treasurer     ______/Franklin\________     Secretary 12 />>||" & vbNewLine
+FinalLines = FinalLines & "||//$\                 ~|UNITED STATES Of AMERICA|~               /$\\||" & vbNewLine
+FinalLines = FinalLines & "||(100)===================  ONE HUNDRED DOLLARS =================(100)||" & vbNewLine
+FinalLines = FinalLines & "||\\$//\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\/\\$//||" & vbNewLine
+FinalLines = FinalLines & "||====================================================================||" & vbNewLine
+
+WriteText(CostingTextFile, FinalLines)
+
+If System.IO.File.Exists("C:\temp\CostingTextFile.txt") = True Then
+    Process.Start("C:\temp\CostingTextFile.txt")
+Else
+    MsgBox("Error in Result file. Good luck figuring out Doug's code to fix it")
+End If
+']
+End Sub
+
+
+Function RecursiveCosting(oDoc As Document, CostingTextFile As String)
+'''Creator: Douglas Brennan Wisser
+'''Date Made: 01/18/2019
+'''Description: This function takes in a model and a text file to write to and runs a costing estimation 
+'''function On this level And all Sub-levels. Returns the review text to display.
+
+Dim oEachRefDoc As Document
+
+For Each oEachRefDoc In oDoc.ReferencedDocuments
+
+	RecursiveCosting(oEachRefDoc, CostingTextFile)
+
+Next
+
+'Run the review on current level
+PartTypeResults = PartTypeID(oDoc)
+
+If PartTypeResults <> "None'd Assembly" And PartTypeResults <> "None'd Part" Then
+	
+	CostResults = CostEstimate(oDoc, PartTypeResults)
+	
+	CostText = CostText & oDoc.FullFileName & vbCrLf
+	CostText = CostText & "Identified as a " & PartTypeResults & "." & vbCrLf
+	CostText = CostText & "----------------------------------------------------------" & vbCrLf
+	CostText = CostText & CostResults
+	CostText = CostText & vbCrLf & vbCrLf
+	
+	WriteText(CostingTextFile, CostText, 0)
+
+End If
+
+End Function
+
+Function CostEstimate(oDoc As Document, PartType As String)
+'''Creator: Douglas Wisser
+'''Date Made: 01/18/2019
+'''Description: This function takes in a model and its part type (identified through a separate rule)
+'''and estimates the burdened cost to produce it. Returns the costing breakdown text to display.
+
+If PartType = "Cut Sheet Part" Then CostText = CostText & CutSheetPartCosting(oDoc)
+If PartType = "Cut Fabric Part" Then CostText = CostText & CutFabricPartCosting(oDoc)
+If PartType = "Cut Tube Part" Then CostText = CostText & CutTubePartCosting(oDoc)
+If PartType = "Sheet Metal Part" Then CostText = CostText & SheetMetalCosting(oDoc)
+If PartType = "T Panel Part" Then CostText = CostText & TPanelPartCosting(oDoc)
+'If PartType = "Cut Top Part" Then CostText = CostText & CutTopPartCosting(oDoc)
+'If PartType = "Support Panel Part" Then CostText = CostText & SupportPanelPartCosting(oDoc)
+'If PartType = "Hardware Part" Then CostText = CostText & HardwarePartCosting(oDoc)
+If PartType = "Pem Assembly" Then CostText = CostText & PemAssemblyCosting(oDoc)
+If PartType = "Weld Assembly" Then CostText = CostText & WeldAssemblyCosting(oDoc)
+If PartType = "Powder Assembly" Then CostText = CostText & PowderAssemblyCosting(oDoc)
+'If PartType = "Steel Assembly" Then CostText = CostText & SteelAssemblyCosting(oDoc)
+'If PartType = "T Panel Assembly" Then CostText = CostText & TPanelAssemblyCosting(oDoc)
+'If PartType = "Cut Top Assembly" Then CostText = CostText & CutTopAssemblyCosting(oDoc)
+'If PartType = "Fabric Assembly" Then CostText = CostText & FabricAssemblyCosting(oDoc)
+
+Return CostText
+End Function
+
+'''********************************'''
+'''********************************'''
+'''COST ESTIMATION ROUTINES
+'''********************************'''
+'''********************************'''
+
+'['Cost Estimation
+
+'''********************************'''
+'''Cut Sheet Part
+'''********************************'''
+
+Function CutSheetPartCosting(oDoc As Document)
+
+ShopRate = 65 / 60						'Burdened Labor Cost in $/minute 
+
+Try
+	
+	MATTYP_Value = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("MATTYP").Value
+	
+	Select Case MATTYP_Value
+	
+		Case "2ACR"
+		CutSheetSF_Cost = 4.1157			'Corresponds to PN 480105. Revised 01.23.2019
+	
+		Case "2ACS"
+		CutSheetSF_Cost = 5.6093			'Corresponds to PN 0000766. Revised 01.23.2019
+	
+		Case "2ACC"
+		CutSheetSF_Cost = 3.6093			'Corresponds to PN 0000471. Revised 01.23.2019
+	
+		Case "2MDF"
+		CutSheetSF_Cost = 0.3100			'Corresponds to PN 550060. Revised 01.23.2019
+	
+		Case "3ACF"
+		CutSheetSF_Cost = 8.0521			'Corresponds to PN 0000800. Revised 01.23.2019
+	
+		Case "4MDF"
+		CutSheetSF_Cost = 0.8125			'Corresponds to PN 0000606. Revised 01.23.2019
+	
+		Case "4TB"
+		CutSheetSF_Cost = 0.6588			'Corresponds to PN 0000327. Revised 01.23.2019
+	
+		Case "8ACR"
+		CutSheetSF_Cost = 15.5300			'Corresponds to PN 480266. Revised 01.23.2019
+	
+		Case "9MDF"
+		CutSheetSF_Cost = 0.0536			'Corresponds to PN ?. Revised 01.23.2019
+	
+		Case "9RP"
+		CutSheetSF_Cost = 1.3731			'Corresponds to PN 470810-NAF. Revised 01.23.2019
+	
+		Case "PLEXIC"
+		CutSheetSF_Cost = 3.1171			'Corresponds to PN 096750. Revised 01.23.2019
+	
+	End Select
+	
+Catch
+
+	ERRORS = ERRORS & "No MATTYP found in " & oDoc.FullFileName & " , which was identified as a cut sheet part."
+
+End Try
+
+Try
+
+	SF_Value = Val(oDoc.PropertySets.Item("Inventor User Defined Properties").Item("SQFT").Value)
+
+Catch
+
+	ERRORS = ERRORS & "No SQFT found in " & oDoc.FullFileName & " , which was identified as a cut sheet part."
+
+End Try
+
+Try
+
+	RLOAD_Value = Val(oDoc.PropertySets.Item("Inventor User Defined Properties").Item("RLOAD").Value)
+
+Catch
+
+	ERRORS = ERRORS & "No RLOAD found in " & oDoc.FullFileName & " , which was identified as a cut sheet part."
+
+End Try
+
+'['Cost Calculation
+
+CutSheetScrapFactor = 1.25
+
+CutSheetMaterial_Cost = CutSheetSF_Cost * SF_Value * CutSheetScrapFactor
+
+CutSheetRouter_Cost = RLOAD_Value * ShopRate
+
+TotalCutSheet_Cost = CutSheetMaterial_Cost + CutSheetRouter_Cost 
+
+']
+
+CostBreakdownText = "Cut Sheet Material Cost:" & vbTab & vbTab  & "$" & FormatNumber(Round(CutSheetMaterial_Cost, 2), 2) & vbNewLine
+CostBreakdownText = CostBreakdownText & "Cut Sheet Router Cost:" & vbTab & vbTab & vbTab & "$" & FormatNumber(Round(CutSheetRouter_Cost, 2), 2) & vbNewLine
+CostBreakdownText = CostBreakdownText & "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" & vbNewLine
+CostBreakdownText = CostBreakdownText & "Total Cost:" & vbTab & vbTab & vbTab & vbTab & "$" & FormatNumber(Round(TotalCutSheet_Cost, 2), 2) & vbNewLine
+
+'['Error Handling
+
+If ERRORS <> "" Then MessageBox.Show(ERRORS, "ERROR!")
+
+']
+
+Return CostBreakdownText
+End Function
+
+'''********************************'''
+'''Cut Fabric Part
+'''********************************'''
+
+Function CutFabricPartCosting(oDoc As Document)
+
+'['Define Constants
+
+ShopRate = 65 / 60											'Burdened Labor Cost in $/minute 
+
+CutFabricCutting_Time = 1									'In parts per minute
+
+CutFabricScrapFactor = 1.25
+CutFabricSF_Cost = 9.65 * 144 / 36 / 66						'In $/SF - Revised 01.23.2019 (composite of all fabrics)
+
+Try
+
+	CUTA_Value = (Val(oDoc.PropertySets.Item("Inventor User Defined Properties").Item("CUTA").Value))
+
+Catch
+
+	ERRORS = ERRORS & "No CUTA found in " & oDoc.FullFileName & " , which was identified as a cut fabric part."
+
+End Try
+
+Try
+
+	CUTB_Value = (Val(oDoc.PropertySets.Item("Inventor User Defined Properties").Item("CUTB").Value))
+
+Catch
+
+	ERRORS = ERRORS & "No CUTB found in " & oDoc.FullFileName & " , which was identified as a cut fabric part."
+
+End Try
+
+CutFabricSF = (CUTA_Value * CUTB_Value) / 144
+
+']
+
+'['Cost Calculation
+
+CutFabricMaterial_Cost = CutFabricSF_Cost * CutFabricSF * CutFabricScrapFactor
+
+CutFabricCutting_Cost = CutFabricCutting_Time * ShopRate
+
+TotalCutFabric_Cost = CutFabricMaterial_Cost + CutFabricCutting_Cost 
+
+']
+
+'['Text Output
+
+CostBreakdownText = "Cut Fabric Material Cost:" & vbTab & vbTab  & "$" & FormatNumber(Round(CutFabricMaterial_Cost, 2), 2) & vbNewLine
+CostBreakdownText = CostBreakdownText & "Cut Fabric Cutting Cost:" & vbTab & vbTab & "$" & FormatNumber(Round(CutFabricCutting_Cost, 2), 2) & vbNewLine
+CostBreakdownText = CostBreakdownText & "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" & vbNewLine
+CostBreakdownText = CostBreakdownText & "Total Cost:" & vbTab & vbTab & vbTab & vbTab & "$" & FormatNumber(Round(TotalCutFabric_Cost, 2), 2) & vbNewLine
+
+']
+
+'['Error Handling
+
+If ERRORS <> "" Then MessageBox.Show(ERRORS, "ERROR!")
+
+']
+
+Return CostBreakdownText
+End Function
+
+'''********************************'''
+'''Cut Tube Part
+'''********************************'''
+
+Function CutTubePartCosting(oDoc As Document)
+
+ShopRate = 65 / 60								'Burdened Labor Cost in $/minute 
+
+Try
+
+	MATTYP_Value = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("MATTYP").Value
+	
+	Select Case MATTYP_Value
+	
+		Case "0000061"
+		TubeInch_Cost = 0.3525			'Revised 01.18.2019
+	
+		Case "0000107"
+		TubeInch_Cost = 0.0233			'Revised 01.18.2019
+	
+		Case "0000237"
+		TubeInch_Cost = 0.0675			'Revised 01.18.2019
+	
+		Case "0000427"
+		TubeInch_Cost = 0.1479			'Revised 01.18.2019
+	
+		Case "0000816"
+		TubeInch_Cost = 0.2144			'Revised 01.18.2019
+	
+		Case "0000831"
+		TubeInch_Cost = 0.1844			'Revised 01.18.2019
+	
+		Case "0000836"
+		TubeInch_Cost = 0.0920			'Revised 01.18.2019
+	
+		Case "0000837"
+		TubeInch_Cost = 0.1042			'Revised 01.18.2019
+	
+	'	Case "014751"
+	'	TubeInch_Cost = 2.4944			'Revised 12.12.2018 - Not ordered since 2014
+	
+		Case "060080"
+		TubeInch_Cost = 0.0536			'Revised 01.18.2019
+	
+		Case "060205"
+		TubeInch_Cost = 0.0632			'Revised 01.18.2019
+	
+		Case "065000"
+		TubeInch_Cost = 0.1336			'Revised 01.18.2019
+	
+		Case "096000"
+		TubeInch_Cost = 0.2325			'Revised 01.18.2019	
+	
+		Case "096100"
+		TubeInch_Cost = 0.4278			'Revised 01.18.2019
+	
+		Case "096205"
+		TubeInch_Cost = 0.1169			'Revised 01.18.2019 - OBSOLETE
+	
+		Case "096600"
+		TubeInch_Cost = 0.0381			'Revised 01.18.2019
+	
+		Case "115500"
+		TubeInch_Cost = 0.0183			'Revised 01.18.2019
+	
+		Case "115555"
+		TubeInch_Cost = 0.1219			'Revised 01.18.2019
+	
+		Case "211000"
+		TubeInch_Cost = 0.0750			'Revised 01.18.2019
+	
+		Case "211010"
+		TubeInch_Cost = 0.0750			'Revised 01.18.2019 - OBSOLETE
+	
+		Case "256515"
+		TubeInch_Cost = 1.4675			'Revised 01.18.2019
+	
+		Case "276550"
+		TubeInch_Cost = 0.1987			'Revised 01.18.2019
+	
+		Case "276560"
+		TubeInch_Cost = 0.1039			'Revised 01.18.2019
+	
+		Case "276570"
+		TubeInch_Cost = 0.1521			'Revised 01.18.2019
+	
+		Case "276595"
+		TubeInch_Cost = 0.3893			'Revised 01.18.2019
+		
+		Case "276675"
+		TubeInch_Cost = 0.1244			'Revised 01.18.2019
+	
+		Case "276680"
+		TubeInch_Cost = 0.1328			'Revised 01.18.2019
+	
+		Case "277000"
+		TubeInch_Cost = 0.0882			'Revised 01.18.2019
+	
+		Case "277005"
+		TubeInch_Cost = 0.1444			'Revised 01.18.2019
+	
+		Case "277025"
+		TubeInch_Cost = 0.1093			'Revised 01.18.2019	
+	
+		Case "277550"
+		TubeInch_Cost = 0.0716			'Revised 01.18.2019
+	
+		Case "277560"
+		TubeInch_Cost = 0.1875			'Revised 01.18.2019
+	
+		Case "277590"
+		TubeInch_Cost = 0.0333			'Revised 01.18.2019
+	
+		Case "277593"
+		TubeInch_Cost = 0.1541			'Revised 01.18.2019
+	
+		Case "480102"
+		TubeInch_Cost = 0.2158			'Revised 01.18.2019
+	
+		Case "480104"
+		TubeInch_Cost = 0.3789			'Revised 01.18.2019
+	
+		Case "480175"
+		TubeInch_Cost = 2.5760			'Revised 01.18.2019
+	
+		Case "480264"
+		TubeInch_Cost = 0.0137			'Revised 01.18.2019
+	
+	'	Case "480290"
+	'	TubeInch_Cost = 3.8985			'Revised 12.12.2018
+	
+		Case "490100"
+		TubeInch_Cost = 0.2733			'Revised 01.18.2019
+	
+		Case "990081"
+		TubeInch_Cost = 8.1960			'Revised 01.18.2019
+	
+	End Select
+	
+Catch
+
+	ERRORS = ERRORS & "No MATTYP found in " & oDoc.FullFileName & " , which was identified as a cut tube."
+	
+End Try
+
+TubeScrapFactor = 1.1
+
+Try
+
+	MiterAngleA = Val(oDoc.PropertySets.Item("Inventor User Defined Properties").Item("MITERANGLEA").Value)
+	
+Catch
+
+	ERRORS = ERRORS & "No MITERANGLEA found in " & oDoc.FullFileName & " , which was identified as a cut tube."
+	
+End Try
+
+Try
+
+	MiterAngleB = Val(oDoc.PropertySets.Item("Inventor User Defined Properties").Item("MITERANGLEB").Value)
+	
+Catch
+
+	ERRORS = ERRORS & "No MITERANGLEB found in " & oDoc.FullFileName & " , which was identified as a cut tube."
+	
+End Try
+
+If MiterAngleA = 90 And MiterAngleB = 90 Then TubeCutTime = 1
+If MiterAngleA = 90 And MiterAngleB <> 90 Then TubeCutTime = 4
+If MiterAngleA <> 90 And MiterAngleB = 90 Then TubeCutTime = 4
+If MiterAngleA <> 90 And MiterAngleB <> 90 And MiterAngleA = MiterAngleB Then TubeCutTime = 4.5
+If MiterAngleA <> 90 And MiterAngleB <> 90 And MiterAngleA <> MiterAngleB Then TubeCutTime = 6
+
+'['Holes, Taps, and Countersinks
+
+HoleDrill_Time = 0.50 'In minutes per Tap Operation
+Tap_Time = 0.50 'In minutes per Tap Operation
+Countersink_Time = 0.50 'In minutes per Countersink Operation
+
+Tapped_Count = 0
+Countersink_Count = 0
+
+Try
+	
+	Holes = oDoc.ComponentDefinition.Features.HoleFeatures
+	HoleCount = Holes.Count
+	
+	For Each Hole In Holes
+	
+		If Hole.Tapped And Not(Hole.Suppressed) Then Tapped_Count = Tapped_Count + (1 * Hole.HoleCenterPoints.Count)
+		
+		If Hole.HoleType() = 21506 And Not(Hole.Suppressed) Then Countersink_Count = Countersink_Count + (1 * Hole.HoleCenterPoints.Count)
+		
+	Next Hole
+	
+Catch
+
+	ERRORS = ERRORS & "Error when referencing hole features in " & oDoc.FullFileName & " , which was identified as a sheet metal part."
+
+End Try
+
+HoleDrill_Cost = HoleCount * HoleDrill_Time * ShopRate
+Tap_Cost = Tapped_Count * Tap_Time * ShopRate
+Countersink_Cost = Countersink_Count * Countersink_Time * ShopRate
+
+']
+
+Try
+
+	TubeLength_Value = Val(oDoc.PropertySets.Item("Inventor User Defined Properties").Item("LENGTH").Value)
+
+Catch
+
+	ERRORS = ERRORS & "No LENGTH found in " & oDoc.FullFileName & " , which was identified as a cut tube."
+
+End Try
+
+TubeMaterial_Cost = TubeInch_Cost * TubeLength_Value * TubeScrapFactor
+TubeCut_Cost = TubeCutTime * ShopRate
+TotalTube_Cost = TubeMaterial_Cost + TubeCut_Cost + HoleDrill_Cost + Tap_Cost + Countersink_Cost 
+
+CostBreakdownText = "Tube Material Cost:" & vbTab & vbTab & vbTab & "$" & FormatNumber(Round(TubeMaterial_Cost, 2), 2) & vbNewLine
+CostBreakdownText = CostBreakdownText & "Tube Cutting Cost:" & vbTab & vbTab & vbTab & "$" & FormatNumber(Round(TubeCut_Cost, 2), 2) & vbNewLine
+CostBreakdownText = CostBreakdownText & HoleCount & " Drilled Hole(s):" & vbTab & vbTab & vbTab & "$" & FormatNumber(Round(HoleDrill_Cost, 2), 2) & vbNewLine
+CostBreakdownText = CostBreakdownText & Tapped_Count & " Tapped Hole(s):" & vbTab & vbTab & vbTab & "$" & FormatNumber(Round(Tap_Cost, 2), 2) & vbNewLine
+CostBreakdownText = CostBreakdownText & Countersink_Count & " Countersunk Hole(s):" & vbTab & vbTab & vbTab & "$" & FormatNumber(Round(Countersink_Cost, 2), 2) & vbNewLine
+CostBreakdownText = CostBreakdownText & "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" & vbNewLine
+CostBreakdownText = CostBreakdownText & "Total Cost:" & vbTab & vbTab & vbTab & vbTab & "$" & FormatNumber(Round(TotalTube_Cost, 2), 2) & vbNewLine
+
+'['Error Handling
+
+If ERRORS <> "" Then MessageBox.Show(ERRORS, "ERROR!")
+
+']
+
+Return CostBreakdownText
+End Function
+
+'''********************************'''
+'''Sheet Metal Part
+'''********************************'''
+
+Function SheetMetalCosting(oDoc As Document)
+
+Try
+
+'['Run Calculate BendCount rule.
+
+	Dim oFlatPattern As FlatPattern
+ 	oFlatPattern = oDoc.ComponentDefinition.FlatPattern
+	
+	Dim i As Integer
+	Dim j As Integer
+	
+    Dim UpBendEdges As Edges
+    Dim DownBendEdges As Edges
+	Dim StartPoint1 As Point
+	Dim StartPoint2 As Point
+	Dim StopPoint1 As Point
+	Dim StopPoint2 As Point
+	Dim BendVector1 As Vector
+	Dim BendVector2 As Vector
+	Dim BendVector3 As Vector
+	Dim UpBendCollinearCount As Integer = 0
+	Dim DownBendCollinearCount As Integer = 0
+	Dim UpBendCount As Integer = 0
+    Dim DownBendCount As Integer = 0
+	Dim ActiveCollinearBend As Boolean = False
+	
+	ShopRate = 65 / 60								'Burdened Labor Cost in $/minute 
+	
+	UpBendCollinearCount = 0
+    DownBendCollinearCount = 0
+	
+	UpBendEdges = oFlatPattern.GetEdgesOfType(FlatPatternEdgeTypeEnum.kBendUpFlatPatternEdge)
+	DownBendEdges = oFlatPattern.GetEdgesOfType(FlatPatternEdgeTypeEnum.kBendDownFlatPatternEdge)
+	
+	UpBendCount = oFlatPattern.GetEdgesOfType(FlatPatternEdgeTypeEnum.kBendUpFlatPatternEdge).Count
+	DownBendCount = oFlatPattern.GetEdgesOfType(FlatPatternEdgeTypeEnum.kBendDownFlatPatternEdge).Count
+	
+	For i = 1 To UpBendCount - 1
+	
+		ActiveCollinearBend = False
+
+		For j = i + 1 To UpBendCount
+		
+			StartPoint1 = UpBendEdges(i).StartVertex.Point
+			StartPoint2 = UpBendEdges(j).StartVertex.Point
+			StopPoint1 = UpBendEdges(i).StopVertex.Point
+			StopPoint2 = UpBendEdges(j).StopVertex.Point
+			BendVector1 = StartPoint1.VectorTo(StopPoint1)
+			BendVector1Inverse = StopPoint1.VectorTo(StartPoint1)
+			BendVector2 = StartPoint1.VectorTo(StartPoint2)
+			BendVector3 = StartPoint1.VectorTo(StopPoint2)
+			If (BendVector1.IsParallelTo(BendVector2) And BendVector1.IsParallelTo(BendVector3)) Or (BendVector1Inverse.IsParallelTo(BendVector2) And BendVector1Inverse.IsParallelTo(BendVector3)) Then ActiveCollinearBend = True
+		
+		Next j
+		
+		If ActiveCollinearBend Then UpBendCollinearCount = UpBendCollinearCount + 1
+	
+	Next i
+
+	For i = 1 To DownBendCount - 1
+	
+		ActiveCollinearBend = False
+		
+		For j = i + 1 To DownBendCount
+		
+			StartPoint1 = DownBendEdges(i).StartVertex.Point
+			StartPoint2 = DownBendEdges(j).StartVertex.Point
+			StopPoint1 = DownBendEdges(i).StopVertex.Point
+			StopPoint2 = DownBendEdges(j).StopVertex.Point
+			BendVector1 = StartPoint1.VectorTo(StopPoint1)
+			BendVector1Inverse = StopPoint1.VectorTo(StartPoint1)
+			BendVector2 = StartPoint1.VectorTo(StartPoint2)
+			BendVector3 = StartPoint1.VectorTo(StopPoint2)
+			If (BendVector1.IsParallelTo(BendVector2) And BendVector1.IsParallelTo(BendVector3)) Or (BendVector1Inverse.IsParallelTo(BendVector2) And BendVector1Inverse.IsParallelTo(BendVector3)) Then ActiveCollinearBend = True
+			
+		Next j
+		
+		If ActiveCollinearBend Then DownBendCollinearCount = DownBendCollinearCount + 1
+		
+	Next i
+	
+DownBendCount = DownBendCount - DownBendCollinearCount
+UpBendCount = UpBendCount - UpBendCollinearCount
+
+iBendCount = DownBendCount + UpBendCount
+
+Catch
+
+	ERRORS = ERRORS & "Could not calculate bend count in " & oDoc.FullFileName & " , which was identified as a sheet metal part."
+	
+End Try
+']
+
+'['Cost Calculation
+
+'['Raw Sheet Metal Cost
+
+SF_Cost = 0
+
+Try
+
+	MATTYP_Value = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("MATTYP").Value
+
+	Select Case MATTYP_Value
+	
+		Case "10GACRS"
+		SF_Cost = 2.8271			'Revised 12.12.2018
+	
+		Case "12GACRS"
+		SF_Cost = 2.1170			'Revised 12.12.2018
+	
+		Case "14GACRS"
+		SF_Cost = 1.3798			'Revised 12.12.2018
+	
+		Case "16GACRS"
+		SF_Cost = 1.1988			'Revised 12.12.2018
+	
+		Case "18GACRS"
+		SF_Cost = 0.9718			'Revised 12.12.2018
+	
+		Case "20GACRS"
+		SF_Cost = 0.7288			'Revised 12.12.2018
+	
+		Case "22GACRS"
+		SF_Cost = 0.6154			'Revised 12.12.2018
+	
+		Case "8GAAL"
+		SF_Cost = 7.58				'Revised 12.12.2018 - Not ordered since 2014
+	
+		Case "16GAAL"
+		SF_Cost = 2.4944			'Revised 12.12.2018 - Not ordered since 2014
+	
+		Case "18PERF"
+		SF_Cost = 2.8760			'Revised 07.22.2019
+	
+		Case "20PERF"
+		SF_Cost = 3.8985			'Revised 12.12.2018
+	
+		Case "188A36PO"
+		SF_Cost = 3.3115			'Revised 12.12.2018
+	
+		Case "250A36PO"
+		SF_Cost = 4.4629			'Revised 12.12.2018
+	
+		Case "500A36PO"
+		SF_Cost = 13.3672			'Revised 12.12.2018 - Not ordered since 2014	
+	
+	End Select
+
+Catch
+
+	ERRORS = ERRORS & "No MATTYP found in " & oDoc.FullFileName & " , which was identified as a sheet metal part."
+	
+End Try
+
+Try
+
+	CUTA_Value = Val(oDoc.PropertySets.Item("Inventor User Defined Properties").Item("CUTA").Value)
+	
+Catch
+
+	ERRORS = ERRORS & "No CUTA found in " & oDoc.FullFileName & " , which was identified as a sheet metal part."
+	
+End Try
+
+Try
+
+	CUTB_Value = Val(oDoc.PropertySets.Item("Inventor User Defined Properties").Item("CUTB").Value)
+	
+Catch
+
+	ERRORS = ERRORS & "No CUTB found in " & oDoc.FullFileName & " , which was identified as a sheet metal part."
+	
+End Try
+
+SF = Ceil(CUTA_Value) * Ceil(CUTB_Value) / 144
+
+SM_ScrapFactor = 0.25
+SM_Cost = SF * SF_Cost * (1 + SM_ScrapFactor)
+
+']
+
+'['Laser Cost
+
+Try
+
+	LLOAD_Value = Val(oDoc.PropertySets.Item("Inventor User Defined Properties").Item("LLOAD").Value)
+	
+Catch
+
+	ERRORS = ERRORS & "No LLOAD found in " & oDoc.FullFileName & " , which was identified as a sheet metal part."
+	
+End Try
+
+Laser_Cost = LLOAD_Value * ShopRate
+
+']
+
+'['Bend Cost
+
+Bend_Time = 0.50 'In minutes
+
+Bend_Cost = iBendCount * Bend_Time * ShopRate
+
+']
+
+'['Taps and Countersinks
+
+Tap_Time = 0.50 'In minutes per Tap Operation
+Countersink_Time = 0.50 'In minutes per Countersink Operation
+
+Tapped_Count = 0
+Countersink_Count = 0
+
+Try
+
+	Holes = oDoc.ComponentDefinition.Features.HoleFeatures
+	
+	For Each Hole In Holes
+	
+		HoleFaceCount = Hole.Faces.Count												'Expect 1 per standard hole and 2 per countersunk hole. Divide by center points to include holes across multiple faces.
+		
+'		MessageBox.Show(HoleFaceCount, "Number of Faces Created by Hole")
+	
+		If Hole.Tapped And Not(Hole.Suppressed) Then Tapped_Count = Tapped_Count + (1 * Hole.HoleCenterPoints.Count)
+		
+		If Hole.HoleType() = 21506 And Not(Hole.Suppressed) Then Countersink_Count = Countersink_Count + (1 * Hole.HoleCenterPoints.Count)
+		
+	Next Hole
+	
+Catch
+
+	ERRORS = ERRORS & "Error when referencing hole features in " & oDoc.FullFileName & " , which was identified as a sheet metal part."
+
+End Try
+
+Tap_Cost = Tapped_Count * Tap_Time * ShopRate
+Countersink_Cost = Countersink_Count * Countersink_Time * ShopRate
+
+']
+
+iCostEstimate = Round(SM_Cost + Laser_Cost + Bend_Cost + Tap_Cost + Countersink_Cost, 2)
+
+CostBreakdownText = MATTYP_Value & "  -  " & Round(SF, 2) & " SF:" & vbTab & vbTab & vbTab & "$" & FormatNumber(Round(SM_Cost, 2), 2) & vbNewLine
+CostBreakdownText = CostBreakdownText & "Laser Cost:" & vbTab & vbTab & vbTab & vbTab & "$" & FormatNumber((Round(Laser_Cost, 2)), 2) & vbNewLine
+CostBreakdownText = CostBreakdownText & iBendCount & " Bends:" & vbTab & vbTab & vbTab & vbTab & "$" & FormatNumber(Round(Bend_Cost, 2), 2) & vbNewLine
+CostBreakdownText = CostBreakdownText & Tapped_Count & " Tapped Hole(s):" & vbTab & vbTab & vbTab & "$" & FormatNumber(Round(Tap_Cost, 2), 2) & vbNewLine
+CostBreakdownText = CostBreakdownText & Countersink_Count & " Countersunk Hole(s):" & vbTab & vbTab & vbTab & "$" & FormatNumber(Round(Countersink_Cost, 2), 2) & vbNewLine
+CostBreakdownText = CostBreakdownText & "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" & vbNewLine
+CostBreakdownText = CostBreakdownText & "Total Cost:" & vbTab & vbTab & vbTab & vbTab & "$" & FormatNumber(Round(iCostEstimate, 2), 2) & vbNewLine
+
+'['Error Handling
+
+If ERRORS <> "" Then MessageBox.Show(ERRORS, "ERROR!")
+
+']
+
+Return CostBreakdownText
+End Function
+
+'''********************************'''
+'''T Panel Part
+'''********************************'''
+
+Function TPanelPartCosting(oDoc As Document)
+
+ShopRate = 65 / 60						'Burdened Labor Cost in $/minute 
+
+Try
+	
+	MATTYP_Value = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("MATTYP").Value
+	
+	Select Case MATTYP_Value
+	
+		Case "4M2"
+		TPanelPartSF_Cost = 0.9302			'Composite of 4M2 material. Revised 03.20.2019
+		EdgeBandingLF_Cost = 0.1150			'Composite of 1.5mm x 17mm edge band material. Revised 03.20.2019
+	
+		Case "5P2"
+		TPanelPartSF_Cost = 2.3183			'Composite of 5P2 material. Revised 03.20.2019
+		EdgeBandingLF_Cost = 0.1001			'Composite of 1.5mm x 24mm edge band material. Revised 03.20.2019
+	
+		Case "6M2"
+		TPanelPartSF_Cost = 1.2242			'Composite of 6M2 material. Revised 03.20.2019
+		EdgeBandingLF_Cost = 0.1001			'Composite of 1.5mm x 24mm edge band material. Revised 03.20.2019
+	
+		Case "8M2"
+		TPanelPartSF_Cost = 1.2900			'8M2 Black TFL. Revised 03.20.2019
+		EdgeBandingLF_Cost = 0.1493			'Composite of 1.5mm x 35mm edge band material. Revised 03.20.2019
+	
+		Case "9M2"
+		TPanelPartSF_Cost = 1.6419			'Composite of 9M2 material. Revised 03.20.2019
+		EdgeBandingLF_Cost = 0.1493			'Composite of 1.5mm x 35mm edge band material. Revised 03.20.2019
+	
+	End Select
+	
+Catch
+
+	ERRORS = ERRORS & "No MATTYP found in " & oDoc.FullFileName & " , which was identified as a T Panel part."
+
+End Try
+
+Try
+
+	SF_Value = Val(oDoc.PropertySets.Item("Inventor User Defined Properties").Item("SQFT").Value)
+
+Catch
+
+	ERRORS = ERRORS & "No SQFT found in " & oDoc.FullFileName & " , which was identified as a T Panel part."
+
+End Try
+
+Try
+
+	EDGLFT_Value = Val(oDoc.PropertySets.Item("Inventor User Defined Properties").Item("EDGLFT").Value)
+
+Catch
+
+	ERRORS = ERRORS & "No EDGLFT found in " & oDoc.FullFileName & " , which was identified as a T Panel part."
+
+End Try
+
+LinearBandedEdge_Count = 0
+ContourBandedEdge_Count = 0
+
+Try
+
+	EDGSEQ_Value = Val(oDoc.PropertySets.Item("Inventor User Defined Properties").Item("EDGSEQ").Value)
+	
+	
+
+Catch
+
+	ERRORS = ERRORS & "No EDGSEQ found in " & oDoc.FullFileName & " , which was identified as a T Panel part."
+
+End Try
+
+Try
+
+	RLOAD_Value = Val(oDoc.PropertySets.Item("Inventor User Defined Properties").Item("RLOAD").Value)
+
+Catch
+
+	ERRORS = ERRORS & "No RLOAD found in " & oDoc.FullFileName & " , which was identified as a T Panel part."
+
+End Try
+
+'['Cost Calculation
+
+TPanelPartScrapFactor = 1.25
+LinearBandedEdge_Rate = 0.5									'In Minutes per edge
+ContourBandedEdge_Rate = 4									'In Minutes per edge
+
+TPanelPartMaterial_Cost = TPanelPartSF_Cost * SF_Value * TPanelPartScrapFactor
+
+EdgeBandMaterial_Cost = EdgeBandingLF_Cost * EDGLFT_Value
+
+EdgeBandLabor_Cost = ((LinearBandedEdge_Count * LinearBandedEdge_Rate) + (ContourBandedEdge_Count * ContourBandedEdge_Rate)) * ShopRate
+
+TPanelPartRouter_Cost = RLOAD_Value * ShopRate
+
+TotalTPanelPart_Cost = TPanelPartMaterial_Cost + EdgeBandMaterial_Cost + TPanelPartRouter_Cost 
+
+']
+
+CostBreakdownText = "T Panel Material Cost:" & vbTab & vbTab & vbTab & "$" & FormatNumber(Round(TPanelPartMaterial_Cost, 2), 2) & vbNewLine
+CostBreakdownText = CostBreakdownText & "Edge Band Material Cost:" & vbTab & vbTab & "$" & FormatNumber(Round(EdgeBandMaterial_Cost, 2), 2) & vbNewLine
+CostBreakdownText = CostBreakdownText & "Edge Band Labor Cost:" & vbTab & vbTab & vbTab & "$" & FormatNumber(Round(EdgeBandLabor_Cost, 2), 2) & vbNewLine
+CostBreakdownText = CostBreakdownText & "T Panel Router Cost:" & vbTab & vbTab & vbTab & "$" & FormatNumber(Round(TPanelPartRouter_Cost, 2), 2) & vbNewLine
+CostBreakdownText = CostBreakdownText & "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" & vbNewLine
+CostBreakdownText = CostBreakdownText & "Total Cost:" & vbTab & vbTab & vbTab & vbTab & "$" & FormatNumber(Round(TotalTPanelPart_Cost, 2), 2) & vbNewLine
+
+'['Error Handling
+
+If ERRORS <> "" Then MessageBox.Show(ERRORS, "ERROR!")
+
+']
+
+Return CostBreakdownText
+End Function
+
+'''********************************'''
+'''Cut Top Part
+'''********************************'''
+
+'''********************************'''
+'''Support Panel Part
+'''********************************'''
+
+'''********************************'''
+'''Hardware Part
+'''********************************'''
+
+'''********************************'''
+'''Pem Assembly
+'''********************************'''
+
+Function PemAssemblyCosting(oDoc As AssemblyDocument)
+
+ShopRate = 65 / 60								'Burdened Labor Cost in $/minute 
+
+PemCount = -1																												'Initialize number of PEMs (-1 because you don't count the sheet metal part)
+PemInsertRate = 0.5																											'in minutes per PEM
+
+For Each oEachRefOcc In oDoc.ComponentDefinition.Occurrences
+		
+	If Not oEachRefOcc.Suppressed() Then
+			
+		PemCount = PemCount + 1
+			
+	End If
+		
+Next
+
+PemLabor_Cost = PemCount * PemInsertRate * ShopRate
+TotalPem_Cost = PemLabor_Cost
+
+CostBreakdownText = CostBreakdownText & PemCount & " Pemmed Hole(s):" & vbTab & vbTab & vbTab & "$" & FormatNumber(Round(PemLabor_Cost, 2), 2) & vbNewLine
+CostBreakdownText = CostBreakdownText & "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" & vbNewLine
+CostBreakdownText = CostBreakdownText & "Total Cost:" & vbTab & vbTab & vbTab & vbTab & "$" & FormatNumber(Round(TotalPem_Cost, 2), 2) & vbNewLine
+
+'['Error Handling
+
+If ERRORS <> "" Then MessageBox.Show(ERRORS, "ERROR!")
+
+']
+
+Return CostBreakdownText
+End Function
+
+'''********************************'''
+'''Weld Assembly
+'''********************************'''
+
+Function WeldAssemblyCosting(oDoc As AssemblyDocument)
+
+ShopRate = 65 / 60								'Burdened Labor Cost in $/minute 
+'WeldSetUpTimeEstimate = 5
+'WeldTimeEstimate = 5
+'LotSizeEstimate = "1-5 per order"
+
+Dim LotSizeArray As New ArrayList
+LotSizeArray.Add("1-5 per order")
+LotSizeArray.Add("6-24 per order")
+LotSizeArray.Add("25+ per order")
+
+WeldSetUpTimeEstimate = InputBox("Please Estimate Weld Set Up Time for " & oDoc.FullFileName & ". (In Minutes)", "Weld Set Up Time", 0)
+	If WeldSetUpTimeEstimate <= 0 Then
+		WeldSetUpTimeEstimate = InputBox("Please Estimate Weld Set Up Time for " & oDoc.FullFileName & " that is greater than 0 minutes.", "Weld Set Up Time", 0)
+	Else
+		'Do nothing
+	End If
+
+WeldTimeEstimate = InputBox("Please Estimate Weld Time for " & oDoc.FullFileName & ". (In Minutes)", "Weld Time", 0)
+	If WeldTimeEstimate <= 0 Then
+		WeldTimeEstimate = InputBox("Please Estimate Weld Time for " & oDoc.FullFileName & " that is greater than 0 minutes.", "Weld Time", 0)
+	Else
+		'Do nothing
+	End If
+
+LotSizeEstimate = InputListBox("Choose an Average Lot Size Value", LotSizeArray, "Pending",Title := "Select Lot Size", ListName := "Lot Sizes")
+
+If LotSizeEstimate = "1-5 per order" Then
+	NumericalLotSizeEstimate = 2.5
+ElseIf LotSizeEstimate = "6-24 per order" Then
+	NumericalLotSizeEstimate = 15
+ElseIf LotSizeEstimate = "25+ per order" Then
+	NumericalLotSizeEstimate = 25
+End If
+
+WeldSetUp_Cost = (WeldSetUpTimeEstimate / NumericalLotSizeEstimate) * ShopRate												'Ammortizes set-up cost based on typical run size
+WeldLabor_Cost = WeldTimeEstimate * ShopRate
+TotalWeld_Cost = WeldSetUp_Cost + WeldLabor_Cost
+
+CostBreakdownText = "Ammortized Weld Set Up Cost:" & vbTab & vbTab & "$" & FormatNumber(Round(WeldSetUp_Cost, 2), 2) & vbNewLine
+CostBreakdownText = CostBreakdownText & "Weld Labor Cost:" & vbTab & vbTab & vbTab & "$" & FormatNumber(Round(WeldLabor_Cost, 2), 2) & vbNewLine
+CostBreakdownText = CostBreakdownText & "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" & vbNewLine
+CostBreakdownText = CostBreakdownText & "Total Cost:" & vbTab & vbTab & vbTab & vbTab & "$" & FormatNumber(Round(TotalWeld_Cost, 2), 2) & vbNewLine
+
+'['Error Handling
+
+If ERRORS <> "" Then MessageBox.Show(ERRORS, "ERROR!")
+
+']
+
+Return CostBreakdownText
+End Function
+
+'''********************************'''
+'''Powder Assembly
+'''********************************'''
+
+Function PowderAssemblyCosting(oDoc As AssemblyDocument)
+
+ShopRate = 65 / 60								'Burdened Labor Cost in $/minute 
+
+PowderDensity = 62.4 / (12^3) * 1.55																						'Density of water in in.^3 * average relative density of powder per MSDS
+PowderApplicationRate = 1																									'Rough estimate of in^3/min
+
+Try
+
+	PowderAssemblySurfaceArea = Round((oDoc.ComponentDefinition.MassProperties.Area / 6.4516), 2)							'Convert from cm^2 to in^2
+
+Catch
+
+	MessageBox.Show("ERROR in Powder Assembly Surface Area Check for " & oDoc.FullFileName & ".", "ERROR!!!!!!!")
+	PowderAssemblySurfaceArea = 1
+	
+End Try
+
+PowderAssemblyPowderVolume = Round((PowderAssemblySurfaceArea * 0.003 * 1.5), 2)											'Assumes 0.003" thick powder and 50% waste
+PowderWeight = PowderAssemblyPowderVolume * PowderDensity
+
+Try
+
+	POWFIN_Value = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("POWFIN").Value
+
+	If POWFIN_Value = "SPLTWT" Then
+
+		PowderUnit_Cost = 7.99																								'$7.99 per pound of white markerboard powder
+	
+	ElseIf POWFIN_Value = "RP" Then
+
+		PowderUnit_Cost = 0																									'Recovered Pewter is FREE!!!!
+	
+	ElseIf POWFIN_Value = "" Then
+
+		ERRORS = ERRORS & "Blank POWFIN found in " & oDoc.FullFileName & " , which was identified as a powder assembly."
+
+	Else
+
+		PowderUnit_Cost = 6.31																								'Composite Powder Cost - Price current as of 01.18.2019
+	
+	End If	
+
+Catch
+
+	ERRORS = ERRORS & "No POWFIN found in " & oDoc.FullFileName & " , which was identified as a powder assembly."
+
+End Try
+
+PowderMaterial_Cost = PowderWeight * PowderUnit_Cost
+PowderLabor_Cost = PowderAssemblyPowderVolume / PowderApplicationRate * ShopRate
+TotalPowder_Cost = PowderMaterial_Cost + PowderLabor_Cost
+
+CostBreakdownText = "Powder Material Cost:" & vbTab & vbTab & vbTab & "$" & FormatNumber(Round(PowderMaterial_Cost, 2), 2) & vbNewLine
+CostBreakdownText = CostBreakdownText & "Powder Labor Cost:" & vbTab & vbTab & vbTab & "$" & FormatNumber(Round(PowderLabor_Cost, 2), 2) & vbNewLine
+CostBreakdownText = CostBreakdownText & "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~" & vbNewLine
+CostBreakdownText = CostBreakdownText & "Total Cost:" & vbTab & vbTab & vbTab & vbTab & "$" & FormatNumber(Round(TotalPowder_Cost, 2), 2) & vbNewLine
+
+'['Error Handling
+
+If ERRORS <> "" Then MessageBox.Show(ERRORS, "ERROR!")
+
+']
+
+Return CostBreakdownText
+End Function
+
+'''********************************'''
+'''Steel Assembly
+'''********************************'''
+
+'''********************************'''
+'''T Panel Assembly
+'''********************************'''
+
+'''********************************'''
+'''Cut Top Assembly
+'''********************************'''
+
+']
+
+'''********************************'''
+'''********************************'''
+'''PART TYPE IDENTIFICATION ROUTINE'''
+'''********************************'''
+'''********************************'''
+
+Function PartTypeID(oDoc As Document)
+'''Creator: Douglas Wisser
+'''Date Made: 11/01/2018
+'''Description: This function looks at all the underlying iProperties and document properties of a model
+'''and identifies what type of watson part it is. There is a commented matrix of part type liklihood at the 
+'''end of the function that can be uncommented for use in debugging. Returns the most likely part type as a string.
+
+Dim ERRORS As String = ""
+
+Dim IsPart As Boolean = False
+Dim IsAssembly As Boolean = False
+
+Dim CutSheetPart As Double = 0
+Dim CutFabricPart As Double = 0
+Dim CutTubePart As Double = 0
+Dim SheetMetalPart As Double = 0
+Dim TPanelPart As Double = 0
+Dim CutTopPart As Double = 0
+Dim SupportPanelPart As Double = 0
+Dim HardwarePart As Double = 0
+Dim NonedPart As Double = 0
+
+Dim PemAssembly As Double = 0
+Dim WeldAssembly As Double = 0
+Dim PowderAssembly As Double = 0
+Dim SteelAssembly As Double = 0
+Dim TPanelAssembly As Double = 0
+Dim CutTopAssembly As Double = 0
+Dim FabricAssembly As Double = 0
+Dim NonedAssembly As Double = 0
+
+Dim CutSheetPartMax As Double = 22
+Dim CutFabricPartMax As Double = 23
+Dim CutTubePartMax As Double = 28
+Dim SheetMetalPartMax As Double = 35
+Dim TPanelPartMax As Double = 25
+Dim CutTopPartMax As Double = 34
+Dim SupportPanelPartMax As Double = 19
+Dim HardwarePartMax As Double = 9
+Dim NonedPartMax As Double = 13
+
+Dim PemAssemblyMax As Double = 15
+Dim WeldAssemblyMax As Double = 18
+Dim PowderAssemblyMax As Double = 18
+Dim SteelAssemblyMax As Double = 18
+Dim TPanelAssemblyMax As Double = 30
+Dim CutTopAssemblyMax As Double = 39
+Dim FabricAssemblyMax As Double = 17
+Dim NonedAssemblyMax As Double = 10
+
+Dim CutSheetPartConfidence As Double = 0
+Dim CutFabricPartConfidence As Double = 0
+Dim CutTubePartConfidence As Double = 0
+Dim SheetMetalPartConfidence As Double = 0
+Dim TPanelPartConfidence As Double = 0
+Dim CutTopPartConfidence As Double = 0
+Dim SupportPanelPartConfidence As Double = 0
+Dim HardwarePartConfidence As Double = 0
+Dim NonedPartConfidence As Double = 0
+
+Dim PemAssemblyConfidence As Double = 0
+Dim WeldAssemblyConfidence As Double = 0
+Dim PowderAssemblyConfidence As Double = 0
+Dim SteelAssemblyConfidence As Double = 0
+Dim TPanelAssemblyConfidence As Double = 0
+Dim CutTopAssemblyConfidence As Double = 0
+Dim FabricAssemblyConfidence As Double = 0
+Dim NonedAssemblyConfidence As Double = 0
+
+Try
+	
+	'['Determine if Document is Assembly or Part
+	
+	FileType = oDoc.DocumentType
+	
+	Select Case FileType
+	
+	Case 12291 'Assembly Document
+	
+		IsAssembly = True
+	
+	Case 12290 'Part Document
+	
+		IsPart = True
+		
+		Select Case oDoc.ComponentDefinition.Type
+		
+		Case 150995200 'Sheet Metal Part
+		
+			SheetMetalPart = SheetMetalPart + 5
+		
+		Case 83886592 'Part
+		
+		End Select
+		
+	End Select
+	
+	']
+	
+	'''PART SPECIFIC LOGIC
+	
+	'['Part Based Logic
+	
+	If IsPart Then
+	
+	CutSheetPart = CutSheetPart + 5
+	CutFabricPart = CutFabricPart + 5
+	CutTubePart = CutTubePart + 5
+	SheetMetalPart = SheetMetalPart + 5
+	TPanelPart = TPanelPart + 5
+	CutTopPart = CutTopPart + 5
+	SupportPanelPart = SupportPanelPart + 5
+	HardwarePart = HardwarePart + 5
+	NonedPart = NonedPart + 5
+	
+	PemAssembly = PemAssembly - 5
+	WeldAssembly = WeldAssembly - 5
+	PowderAssembly = PowderAssembly - 5
+	SteelAssembly = SteelAssembly - 5
+	TPanelAssembly = TPanelAssembly - 5
+	CutTopAssembly = CutTopAssembly - 5
+	FabricAssembly = FabricAssembly - 5
+	NonedAssembly = NonedAssembly - 5
+	
+	'['MATTYP Check
+		
+		Try
+		
+			MATTYP_Value = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("MATTYP").Value
+		
+			Select Case MATTYP_Value
+			
+				Case "4M2", "6M2", "8M2", "9M2", "9ANY"
+				
+					TPanelPart = TPanelPart + 3
+					
+					CutSheetPart = CutSheetPart - 3
+					CutFabricPart = CutFabricPart - 3
+					CutTubePart = CutTubePart - 3
+					SheetMetalPart = SheetMetalPart - 3
+					CutTopPart = CutTopPart - 3
+					SupportPanelPart = SupportPanelPart - 3
+					HardwarePart = HardwarePart - 3
+					NonedPart = NonedPart - 3
+					
+				Case "2ACR", "2ACS", "2ACC", "2MDF", "3ACF", "4MDF", "4TB", "8ACR", "9MDF", "PLEXIC"
+				
+					CutSheetPart = CutSheetPart + 3
+					
+					TPanelPart = TPanelPart - 3
+					CutFabricPart = CutFabricPart - 3
+					CutTubePart = CutTubePart - 3
+					SheetMetalPart = SheetMetalPart - 3
+					CutTopPart = CutTopPart - 3
+					SupportPanelPart = SupportPanelPart - 3
+					HardwarePart = HardwarePart - 3
+					NonedPart = NonedPart - 3
+					
+				Case "5P1", "6MP1", "6MP2", "6P1", "6P2", "8EB1", "8EB2", "9MP1", "9MP2", "9P1", "9P2"
+				
+					CutTopPart = CutTopPart + 3
+					
+					CutSheetPart = CutSheetPart - 3				
+					TPanelPart = TPanelPart - 3
+					CutFabricPart = CutFabricPart - 3
+					CutTubePart = CutTubePart - 3
+					SheetMetalPart = SheetMetalPart - 3
+					SupportPanelPart = SupportPanelPart - 3
+					HardwarePart = HardwarePart - 3
+					NonedPart = NonedPart - 3
+					
+				Case "5P2"																						'Accounts for pressed face groups
+				
+					TPanelPart = TPanelPart + 3
+					CutTopPart = CutTopPart + 3
+					
+					CutSheetPart = CutSheetPart - 3				
+					CutFabricPart = CutFabricPart - 3
+					CutTubePart = CutTubePart - 3
+					SheetMetalPart = SheetMetalPart - 3
+					SupportPanelPart = SupportPanelPart - 3
+					HardwarePart = HardwarePart - 3	
+					NonedPart = NonedPart - 3
+					
+				Case "188A36PO", "250A36PO", "10GACRS", "12GACRS", "14GACRS", "16GACRS", "18GACRS", "20GACRS", "20PERF", "22GACRS"
+				
+					SheetMetalPart = SheetMetalPart + 5
+					
+					CutSheetPart = CutSheetPart - 5
+					CutFabricPart = CutFabricPart - 5
+					CutTubePart = CutTubePart - 5
+					TPanelPart = TPanelPart - 5
+					CutTopPart = CutTopPart - 5
+					SupportPanelPart = SupportPanelPart - 5
+					HardwarePart = HardwarePart - 5
+					NonedPart = NonedPart - 5
+					
+				Case "0000061", "0000107", "0000237", "0000427", "0000816", "0000831", "0000836", "0000837", "014751", "060080", "060205", "065000", "096000", "096100", "096205", "096600", "115500", "115555", "211000", "211010", "256515", "276550", "276560", "276570", "276595", "276675", "276680", "277000", "277005", "277025", "277550", "277560", "277590", "277593", "480102", "480104", "480175", "480264", "480290", "490100", "990081"
+				
+					CutTubePart = CutTubePart + 5
+	
+					CutSheetPart = CutSheetPart - 5
+					CutFabricPart = CutFabricPart - 5
+					SheetMetalPart = SheetMetalPart - 5
+					TPanelPart = TPanelPart - 5
+					CutTopPart = CutTopPart - 5
+					SupportPanelPart = SupportPanelPart - 5
+					HardwarePart = HardwarePart - 5
+					NonedPart = NonedPart - 5
+
+				Case ""
+
+					HardwarePart = HardwarePart + 3
+
+					CutSheetPart = CutSheetPart - 3
+					CutFabricPart = CutFabricPart - 3
+					CutTubePart = CutTubePart - 3
+					SheetMetalPart = SheetMetalPart - 3
+					TPanelPart = TPanelPart - 3
+					CutTopPart = CutTopPart - 3
+					SupportPanelPart = SupportPanelPart - 3
+					NonedPart = NonedPart - 3
+
+				Case Else
+	
+					If Left(MATTYP_Value, 3) = "FAB" Then
+					
+						CutFabricPart = CutFabricPart + 5
+		
+						CutSheetPart = CutSheetPart - 5
+						CutTubePart = CutTubePart - 5
+						SheetMetalPart = SheetMetalPart - 5
+						TPanelPart = TPanelPart - 5
+						CutTopPart = CutTopPart - 5
+						SupportPanelPart = SupportPanelPart - 5
+						HardwarePart = HardwarePart - 5
+						NonedPart = NonedPart - 5
+					
+					End If
+	
+			End Select
+			
+		Catch
+		
+			HardwarePart = HardwarePart + 3
+			NonedPart = NonedPart + 3
+	
+			CutSheetPart = CutSheetPart - 3
+			CutFabricPart = CutFabricPart - 3
+			CutTubePart = CutTubePart - 3
+			SheetMetalPart = SheetMetalPart - 3
+			TPanelPart = TPanelPart - 3
+			CutTopPart = CutTopPart - 3
+			SupportPanelPart = SupportPanelPart - 3
+			
+		End Try
+	']
+		
+	'['Pocket Check
+		
+		Try
+		
+			POCKET_Value = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("POCKET").Value
+		
+			Select Case POCKET_Value
+			
+				Case "A", "B", "NA", "E", "D"
+				
+					TPanelPart = TPanelPart + 3
+					SupportPanelPart = SupportPanelPart + 3
+					
+					CutSheetPart = CutSheetPart - 3
+					CutFabricPart = CutFabricPart - 3
+					CutTubePart = CutTubePart - 3
+					SheetMetalPart = SheetMetalPart - 3
+					CutTopPart = CutTopPart - 3
+					HardwarePart = HardwarePart - 3
+					NonedPart = NonedPart - 3
+					
+				Case Else
+					
+			End Select
+			
+		Catch
+		
+		End Try
+	']
+	
+	'['MiterAngleA Check
+		
+		Try
+		
+			MITERANGLEA_Value = Val(oDoc.PropertySets.Item("Inventor User Defined Properties").Item("MITERANGLEA").Value)			'Val() converts text to double in case iProperty isn't formatted as a double
+		
+			Select Case MITERANGLEA_Value
+			
+				Case 0 To 90
+				
+					CutTubePart = CutTubePart + 5
+					
+					CutSheetPart = CutSheetPart - 5
+					CutFabricPart = CutFabricPart - 5
+					SheetMetalPart = SheetMetalPart - 5
+					TPanelPart = TPanelPart - 5
+					CutTopPart = CutTopPart - 5
+					SupportPanelPart = SupportPanelPart - 5
+					HardwarePart = HardwarePart - 5
+					NonedPart = NonedPart - 5
+					
+				Case Else
+					
+			End Select
+			
+		Catch
+		
+		End Try
+	']
+	
+	'['MiterAngleB Check
+		
+		Try
+		
+			MITERANGLEB_Value = Val(oDoc.PropertySets.Item("Inventor User Defined Properties").Item("MITERANGLEB").Value)			'Val() converts text to double in case iProperty isn't formatted as a double
+		
+			Select Case MITERANGLEB_Value
+			
+				Case 0 To 90
+				
+					CutTubePart = CutTubePart + 5
+					
+					CutSheetPart = CutSheetPart - 5
+					CutFabricPart = CutFabricPart - 5
+					SheetMetalPart = SheetMetalPart - 5
+					TPanelPart = TPanelPart - 5
+					CutTopPart = CutTopPart - 5
+					SupportPanelPart = SupportPanelPart - 5
+					HardwarePart = HardwarePart - 5
+					NonedPart = NonedPart - 5
+					
+				Case Else
+					
+			End Select
+			
+		Catch
+		
+		End Try
+	']
+	
+	'['BendCount Check
+		
+		Try
+		
+		BENDCOUNT_Value = Val(oDoc.PropertySets.Item("Inventor User Defined Properties").Item("BENDCOUNT").Value)			'Val() converts text to double in case iProperty isn't formatted as a double
+		
+			Select Case BENDCOUNT_Value
+			
+				Case Is >= 0
+				
+					SheetMetalPart = SheetMetalPart + 5
+					
+					CutSheetPart = CutSheetPart - 5
+					CutFabricPart = CutFabricPart - 5
+					CutTubePart = CutTubePart - 5
+					TPanelPart = TPanelPart - 5
+					CutTopPart = CutTopPart - 5
+					SupportPanelPart = SupportPanelPart - 5
+					HardwarePart = HardwarePart - 5
+					NonedPart = NonedPart - 5
+					
+				Case Else
+					
+			End Select
+			
+		Catch
+		
+		End Try
+	']
+	
+	'['FABFIN Check
+		
+		Try
+		
+			FabfinPlaceholder = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("FABFIN").Value
+			
+					CutFabricPart = CutFabricPart + 5
+					
+					CutSheetPart = CutSheetPart - 5
+					CutFabricPart = CutFabricPart - 5
+					CutTubePart = CutTubePart - 5
+					SheetMetalPart = SheetMetalPart - 5
+					TPanelPart = TPanelPart - 5
+					CutTopPart = CutTopPart - 5
+					SupportPanelPart = SupportPanelPart - 5
+					HardwarePart = HardwarePart - 5
+					NonedPart = NonedPart - 5
+					
+			
+		Catch
+		
+		End Try
+	']
+		
+	End If
+	
+	']
+	
+	'''ASSEMBLY SPECIFIC LOGIC
+	
+	'['Assembly Based Logic
+	
+	If IsAssembly Then
+	
+		PemAssembly = PemAssembly + 5
+		WeldAssembly = WeldAssembly + 5
+		PowderAssembly = PowderAssembly + 5
+		SteelAssembly = SteelAssembly + 5
+		TPanelAssembly = TPanelAssembly + 5
+		CutTopAssembly = CutTopAssembly + 5
+		FabricAssembly = FabricAssembly + 5
+		NonedAssembly = NonedAssembly + 5
+		
+		CutSheetPart = CutSheetPart - 5
+		CutFabricPart = CutFabricPart - 5
+		CutTubePart = CutTubePart - 5
+		SheetMetalPart = SheetMetalPart - 5
+		TPanelPart = TPanelPart - 5
+		CutTopPart = CutTopPart - 5
+		SupportPanelPart = SupportPanelPart - 5
+		HardwarePart = HardwarePart - 5
+		NonedPart = NonedPart - 5
+	
+	'['MATTYP Check
+		
+		Try
+		
+			MATTYP_Value = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("MATTYP").Value
+		
+			Select Case MATTYP_Value
+			
+				Case "4M2", "6M2", "8M2", "9M2", "9ANY"
+				
+					TPanelAssembly = TPanelAssembly + 3
+	
+					PemAssembly = PemAssembly - 3
+					WeldAssembly = WeldAssembly - 3
+					PowderAssembly = PowderAssembly - 3
+					SteelAssembly = SteelAssembly - 3
+					CutTopAssembly = CutTopAssembly - 3
+					FabricAssembly = FabricAssembly - 3
+					NonedAssembly = NonedAssembly - 3
+					
+				Case "5P1", "6MP1", "6MP2", "6P1", "6P2", "8EB1", "8EB2", "9MP1", "9MP2", "9P1", "9P2"
+				
+					CutTopAssembly = CutTopAssembly + 3
+	
+					PemAssembly = PemAssembly - 3
+					WeldAssembly = WeldAssembly - 3
+					PowderAssembly = PowderAssembly - 3
+					SteelAssembly = SteelAssembly - 3
+					TPanelAssembly = TPanelAssembly - 3
+					FabricAssembly = FabricAssembly - 3
+					NonedAssembly = NonedAssembly - 3
+					
+				Case "5P2"																						'Accounts for pressed face groups
+				
+					TPanelAssembly = TPanelAssembly + 3
+					CutTopAssembly = CutTopAssembly + 3
+	
+					PemAssembly = PemAssembly - 3
+					WeldAssembly = WeldAssembly - 3
+					PowderAssembly = PowderAssembly - 3
+					SteelAssembly = SteelAssembly - 3
+					FabricAssembly = FabricAssembly - 3
+					NonedAssembly = NonedAssembly - 3
+					
+				Case Else
+	
+			End Select
+			
+		Catch
+		
+		End Try
+	']
+	
+	'['Pocket Check
+	
+		Try
+		
+			POCKET_Value = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("POCKET").Value
+			
+			Select Case POCKET_Value
+			
+				Case "A", "B", "NA", "E", "D"
+				
+					TPanelAssembly = TPanelAssembly + 3
+					
+					PemAssembly = PemAssembly - 3
+					WeldAssembly = WeldAssembly - 3
+					PowderAssembly = PowderAssembly - 3
+					SteelAssembly = SteelAssembly - 3
+					CutTopAssembly = CutTopAssembly - 3
+					FabricAssembly = FabricAssembly - 3
+					NonedAssembly = NonedAssembly - 3
+					
+				Case Else
+					
+			End Select
+			
+		Catch
+		
+		End Try
+	']
+	
+	'['FABFIN Check
+	
+		Try
+		
+			FABFIN_Value = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("FABFIN").Value
+			
+			FabricAssembly = FabricAssembly + 3
+		
+		Catch
+		
+			PemAssembly = PemAssembly - 3
+			WeldAssembly = WeldAssembly - 3
+			PowderAssembly = PowderAssembly - 3
+			SteelAssembly = SteelAssembly - 3
+			TPanelAssembly = TPanelAssembly - 3
+			CutTopAssembly = CutTopAssembly - 3
+					
+		End Try
+	']
+	
+	'['Subordinate ERP Check
+	
+	'''This routine looks through all sub-components 1 level below the current assembly level and checks ERP_OPERATION.
+	'''If a component ERP_OPERATION value equals one of the expected values for the various assembly types, it adds toward
+	'''the respective assembly type sum. These sums are then divided by the total of all sub-components and are multiplied
+	'''by the 'medium' confidence factor. For example, an assembly consisting of 10 parts, 1 of which is E-390 and 9 of which
+	'''are E790 would add to the powder assembly confidence (1/10) * 3 while adding to the steel assembly confidence (9/10) * 3.
+	
+	Dim oAsmDoc As AssemblyDocument
+	oAsmDoc = oDoc
+	
+	Try
+	
+		SubPemCount = 0
+		SubWeldCount = 0
+		SubPowderCount = 0
+		SubTopCount = 0
+		SubTPanelCount = 0
+		SubFabricCount = 0
+		SubSteelAssemblyCount = 0
+		SubOccurrenceCount = 0
+		
+		
+				For Each oEachRefOcc In oAsmDoc.ComponentDefinition.Occurrences
+				
+					If Not oEachRefOcc.Suppressed() Then
+					
+						SubOccurrenceCount = SubOccurrenceCount + 1
+					
+						Try
+						
+							SubERP_Value = Val(oEachRefOcc.Definition.Document.PropertySets.Item("Inventor User Defined Properties").Item("ERP_OPERATION").Value)
+							
+							'MessageBox.Show(oEachRefOcc.Definition.Document.FullFileName & " : " & SubERP_Value, "Sub ERP")
+							
+							Select Case SubERP_Value
+							
+								Case 340
+								
+									SubPemCount = SubPemCount + 1
+									
+								Case 360, 370, 373						'MIG weld, TIG weld, seam weld
+								
+									SubWeldCount = SubWeldCount + 1
+									
+								Case 390								'Powder
+								
+									SubPowderCount = SubPowderCount + 1
+					
+								Case 411, 510							'Router - no banding, BIMA
+								
+									SubTopCount = SubTopCount + 1
+					
+								Case 460, 500, 600, 620					'Pocket B/No banding, Pocket A, Face, Comp Prep
+								
+									SubTPanelCount = SubTPanelCount + 1
+					
+								Case 750								'Fabric Assembly
+								
+									SubFabricCount = SubFabricCount + 1
+		
+								Case 760, 770, 780, 785, 790			'Electronic Assembly, Steel Assy Inbound, Post Assembly, Driveshaft Assembly, Steel Assy Outbound
+								
+									SubSteelAssemblyCount = SubSteelAssemblyCount + 1
+					
+								Case Else
+									
+							End Select
+							
+						Catch
+						
+						End Try
+					
+					End If
+				
+				Next
+		
+			SubComponentDebugText = oAsmDoc.FullFileName & vbNewLine & vbNewLine
+			SubComponentDebugText = SubComponentDebugText & "Pem Count: " & SubPemCount  & vbNewLine
+			SubComponentDebugText = SubComponentDebugText & "Weld Count: " & SubWeldCount & vbNewLine
+			SubComponentDebugText = SubComponentDebugText & "Powder Count: " & SubPowderCount & vbNewLine
+			SubComponentDebugText = SubComponentDebugText & "Steel Assy Count: " & SubSteelAssemblyCount & vbNewLine
+			SubComponentDebugText = SubComponentDebugText & "Fabric Assy Count: " & SubFabricCount & vbNewLine
+			SubComponentDebugText = SubComponentDebugText & "T Panel Count: " & SubTPanelCount & vbNewLine
+			SubComponentDebugText = SubComponentDebugText & "Cuttop Count: " & SubTopCount & vbNewLine & vbNewLine
+			SubComponentDebugText = SubComponentDebugText & "Total Count: " & SubOccurrenceCount
+			
+'			MessageBox.Show(SubComponentDebugText, "Sub Components")									'Unsuppress this for debugging sub ERP counts
+		
+			If SubOccurrenceCount <> 0 Then
+			
+				PemAssembly = PemAssembly + ((SubPemCount / SubOccurrenceCount) * 5)
+				WeldAssembly = WeldAssembly + ((SubWeldCount / SubOccurrenceCount) * 5)
+				PowderAssembly = PowderAssembly + ((SubPowderCount / SubOccurrenceCount) * 5)
+				SteelAssembly = SteelAssembly + ((SubSteelAssemblyCount / SubOccurrenceCount) * 5)
+				TPanelAssembly = TPanelAssembly + ((SubTPanelCount / SubOccurrenceCount) * 5)
+				CutTopAssembly = CutTopAssembly + ((SubTopCount / SubOccurrenceCount) * 5)
+				FabricAssembly = FabricAssembly + ((SubFabricCount / SubOccurrenceCount) * 5)
+			
+			End If
+		']
+	Catch
+	
+		MessageBox.Show("ERROR in Sub ERP Check in " & oAsmDoc.FullFileName & ".", "ERROR!!!!!!!")
+		
+	End Try
+	
+	End If
+	
+	']
+	
+	'''UNIVERSAL LOGIC
+	
+	'['Part and Assembly Based Logic
+	
+	'['CUTA
+	
+		Try
+		
+			CUTA_Value = Val(oDoc.PropertySets.Item("Inventor User Defined Properties").Item("CUTA").Value)			'Val() converts text to double in case iProperty isn't formatted as a double
+			
+			Select Case CUTA_Value
+			
+				Case 0 To 144
+				
+					CutSheetPart = CutSheetPart + 1
+					CutFabricPart = CutFabricPart + 1
+					SheetMetalPart = SheetMetalPart + 1
+					TPanelPart = TPanelPart + 1
+					CutTopPart = CutTopPart + 1
+					SupportPanelPart = SupportPanelPart + 1
+					TPanelAssembly = TPanelAssembly + 1
+					CutTopAssembly = CutTopAssembly + 1
+					
+					CutTubePart = CutTubePart - 1
+					HardwarePart = HardwarePart - 1
+					NonedPart = NonedPart - 1
+	
+					PemAssembly = PemAssembly - 1
+					WeldAssembly = WeldAssembly - 1
+					PowderAssembly = PowderAssembly - 1
+					SteelAssembly = SteelAssembly - 1
+					FabricAssembly = FabricAssembly - 1
+					NonedAssembly = NonedAssembly - 1
+			
+				Case Else
+					
+			End Select
+			
+		Catch
+		
+		End Try
+	']
+	
+	'['CUTB
+	
+		Try
+		
+			CUTB_Value = Val(oDoc.PropertySets.Item("Inventor User Defined Properties").Item("CUTB").Value)			'Val() converts text to double in case iProperty isn't formatted as a double
+			
+			Select Case CUTB_Value
+			
+				Case 0 To 144
+				
+					CutSheetPart = CutSheetPart + 1
+					CutFabricPart = CutFabricPart + 1
+					SheetMetalPart = SheetMetalPart + 1
+					TPanelPart = TPanelPart + 1
+					CutTopPart = CutTopPart + 1
+					SupportPanelPart = SupportPanelPart + 1
+					TPanelAssembly = TPanelAssembly + 1
+					CutTopAssembly = CutTopAssembly + 1
+					
+					CutTubePart = CutTubePart - 1
+					HardwarePart = HardwarePart - 1
+					NonedPart = NonedPart - 1
+	
+					PemAssembly = PemAssembly - 1
+					WeldAssembly = WeldAssembly - 1
+					PowderAssembly = PowderAssembly - 1
+					SteelAssembly = SteelAssembly - 1
+					FabricAssembly = FabricAssembly - 1
+					NonedAssembly = NonedAssembly - 1
+			
+				Case Else
+					
+			End Select
+			
+		Catch
+		
+		End Try
+	']
+	
+	'['DIMA
+	
+		Try
+		
+			DIMA_Value = Val(oDoc.PropertySets.Item("Inventor User Defined Properties").Item("DIMA").Value)			'Val() converts text to double in case iProperty isn't formatted as a double
+			
+			Select Case DIMA_Value
+			
+				Case 0 To 144
+				
+					CutSheetPart = CutSheetPart + 1
+					CutFabricPart = CutFabricPart + 1
+					SheetMetalPart = SheetMetalPart + 1
+					TPanelPart = TPanelPart + 1
+					CutTopPart = CutTopPart + 1
+					SupportPanelPart = SupportPanelPart + 1
+					TPanelAssembly = TPanelAssembly + 1
+					CutTopAssembly = CutTopAssembly + 1
+					
+					CutTubePart = CutTubePart - 1
+					HardwarePart = HardwarePart - 1
+					NonedPart = NonedPart - 1
+	
+					PemAssembly = PemAssembly - 1
+					WeldAssembly = WeldAssembly - 1
+					PowderAssembly = PowderAssembly - 1
+					SteelAssembly = SteelAssembly - 1
+					FabricAssembly = FabricAssembly - 1
+					NonedAssembly = NonedAssembly - 1
+			
+				Case Else
+					
+			End Select
+			
+		Catch
+		
+		End Try
+	']
+	
+	'['DIMB
+	
+		Try
+		
+			DIMB_Value = Val(oDoc.PropertySets.Item("Inventor User Defined Properties").Item("DIMB").Value)			'Val() converts text to double in case iProperty isn't formatted as a double
+			
+			Select Case DIMB_Value
+			
+				Case 0 To 144
+				
+					CutSheetPart = CutSheetPart + 1
+					CutFabricPart = CutFabricPart + 1
+					SheetMetalPart = SheetMetalPart + 1
+					TPanelPart = TPanelPart + 1
+					CutTopPart = CutTopPart + 1
+					SupportPanelPart = SupportPanelPart + 1
+					TPanelAssembly = TPanelAssembly + 1
+					CutTopAssembly = CutTopAssembly + 1
+					
+					CutTubePart = CutTubePart - 1
+					HardwarePart = HardwarePart - 1
+					NonedPart = NonedPart - 1
+	
+					PemAssembly = PemAssembly - 1
+					WeldAssembly = WeldAssembly - 1
+					PowderAssembly = PowderAssembly - 1
+					SteelAssembly = SteelAssembly - 1
+					FabricAssembly = FabricAssembly - 1
+					NonedAssembly = NonedAssembly - 1
+			
+				Case Else
+					
+			End Select
+			
+		Catch
+		
+		End Try
+	']
+	
+	'['EDGSEQ
+	
+		Try
+		
+			EDGSEQ_Value = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("EDGSEQ").Value
+		
+			Select Case EDGSEQ_Value
+			
+				Case "NONE", "1A", "1B", "2A", "2B", "1A2B", "2A1B", "2A2B", "1AS", "1BS", "2AS", "2BS", "1A2BS", "2A1BS", "2A2BS", "1AC", "1BC", "2AC", "2BC", "1A2BC", "2A1BC", "2A2BC"
+				
+					TPanelPart = TPanelPart + 3
+					CutTopPart = CutTopPart + 3
+					SupportPanelPart = SupportPanelPart + 3
+					TPanelAssembly = TPanelAssembly + 3
+					CutTopAssembly = CutTopAssembly + 3
+					
+					CutSheetPart = CutSheetPart - 3
+					CutFabricPart = CutFabricPart - 3
+					CutTubePart = CutTubePart - 3
+					SheetMetalPart = SheetMetalPart - 3
+					HardwarePart = HardwarePart - 3
+					NonedPart = NonedPart - 3
+					
+					PemAssembly = PemAssembly - 3
+					WeldAssembly = WeldAssembly - 3
+					PowderAssembly = PowderAssembly - 3
+					SteelAssembly = SteelAssembly - 3
+					FabricAssembly = FabricAssembly - 3
+					NonedAssembly = NonedAssembly - 3
+			
+				Case "ALL"
+				
+					CutTopPart = CutTopPart + 3
+					CutTopAssembly = CutTopAssembly + 3
+					
+					CutSheetPart = CutSheetPart - 3
+					CutFabricPart = CutFabricPart - 3
+					CutTubePart = CutTubePart - 3
+					SheetMetalPart = SheetMetalPart - 3
+					TPanelPart = TPanelPart - 3
+					SupportPanelPart = SupportPanelPart - 3
+					HardwarePart = HardwarePart - 3
+					NonedPart = NonedPart - 3
+					
+					PemAssembly = PemAssembly - 3
+					WeldAssembly = WeldAssembly - 3
+					PowderAssembly = PowderAssembly - 3
+					SteelAssembly = SteelAssembly - 3
+					TPanelAssembly = TPanelAssembly - 3
+					FabricAssembly = FabricAssembly - 3
+					NonedAssembly = NonedAssembly - 3
+	
+				Case Else
+					
+			End Select
+			
+		Catch
+		
+		End Try
+	']
+	
+	'['EDGTYP
+	
+		Try
+		
+			EDGTYP_Value = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("EDGTYP").Value
+		
+			Select Case EDGTYP_Value
+			
+				Case "U", "Q", "Z", "V", "W", "J", "K", "N", "M", "S", "P", "HG", "HG-C", "B", "C", "X", "H"
+				
+					CutTopPart = CutTopPart + 3
+					CutTopAssembly = CutTopAssembly + 3
+							
+					CutSheetPart = CutSheetPart - 3
+					CutFabricPart = CutFabricPart - 3
+					CutTubePart = CutTubePart - 3
+					SheetMetalPart = SheetMetalPart - 3
+					TPanelPart = TPanelPart - 3
+					SupportPanelPart = SupportPanelPart - 3
+					HardwarePart = HardwarePart - 3
+					NonedPart = NonedPart - 3
+					
+					PemAssembly = PemAssembly - 3
+					WeldAssembly = WeldAssembly - 3
+					PowderAssembly = PowderAssembly - 3
+					SteelAssembly = SteelAssembly - 3
+					TPanelAssembly = TPanelAssembly - 3
+					FabricAssembly = FabricAssembly - 3
+					NonedAssembly = NonedAssembly - 3
+			
+				Case Else
+					
+			End Select
+			
+		Catch
+		
+		End Try
+	']
+	
+	'['TOPSHP
+	
+		Try
+		
+			TopShapePlaceHolderValue = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("TOPSHP").Value
+			
+				CutTopPart = CutTopPart + 3
+				CutTopAssembly = CutTopAssembly + 3
+				
+				CutSheetPart = CutSheetPart - 3
+				CutFabricPart = CutFabricPart - 3
+				CutTubePart = CutTubePart - 3
+				SheetMetalPart = SheetMetalPart - 3
+				TPanelPart = TPanelPart - 3
+				SupportPanelPart = SupportPanelPart - 3
+				HardwarePart = HardwarePart - 3
+				NonedPart = NonedPart - 3
+				
+				PemAssembly = PemAssembly - 3
+				WeldAssembly = WeldAssembly - 3
+				PowderAssembly = PowderAssembly - 3
+				SteelAssembly = SteelAssembly - 3
+				TPanelAssembly = TPanelAssembly - 3
+				FabricAssembly = FabricAssembly - 3
+				NonedAssembly = NonedAssembly - 3
+						
+		Catch
+	
+	
+		End Try
+	']
+	
+	'['PETTHK
+	
+		Try
+		
+			PETTHKPlaceHolderValue = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("PETTHK").Value
+			
+				FabricAssembly = FabricAssembly + 3
+				CutSheetPart = CutSheetPart + 3
+				CutFabricPart = CutFabricPart + 3
+
+				CutTubePart = CutTubePart - 3
+				SheetMetalPart = SheetMetalPart - 3
+				TPanelPart = TPanelPart - 3
+				CutTopPart = CutTopPart - 3
+				SupportPanelPart = SupportPanelPart - 3
+				HardwarePart = HardwarePart - 3
+				NonedPart = NonedPart - 3
+				
+				PemAssembly = PemAssembly - 3
+				WeldAssembly = WeldAssembly - 3
+				PowderAssembly = PowderAssembly - 3
+				SteelAssembly = SteelAssembly - 3
+				TPanelAssembly = TPanelAssembly - 3
+				CutTopAssembly = CutTopAssembly - 3
+				NonedAssembly = NonedAssembly - 3
+
+		Catch
+	
+		End Try
+	']
+	
+	'['POWFIN
+	
+		Try
+		
+			PowfinPlaceHolderValue = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("POWFIN").Value
+			
+				CutTubePart = CutTubePart + 1
+				SheetMetalPart = SheetMetalPart + 1
+				
+				PemAssembly = PemAssembly + 1
+				WeldAssembly = WeldAssembly + 1
+				PowderAssembly = PowderAssembly + 1
+				SteelAssembly = SteelAssembly + 1
+				FabricAssembly = FabricAssembly + 1
+						
+				CutSheetPart = CutSheetPart - 1
+				CutFabricPart = CutFabricPart - 1
+				TPanelPart = TPanelPart - 1
+				CutTopPart = CutTopPart - 1
+				SupportPanelPart = SupportPanelPart - 1
+				HardwarePart = HardwarePart - 1
+				NonedPart = NonedPart - 1
+				
+				TPanelAssembly = TPanelAssembly - 1
+				CutTopAssembly = CutTopAssembly - 1
+				NonedAssembly = NonedAssembly - 1
+
+		Catch
+	
+		End Try
+	']
+	
+	
+	'['ERP_OPERATION
+	
+	Try
+	
+		ERP_OPERATION_Value = Val(oDoc.PropertySets.Item("Inventor User Defined Properties").Item("ERP_OPERATION").Value)			'Val() converts text to double in case iProperty isn't formatted as a double
+		
+		Select Case ERP_OPERATION_Value
+		
+			Case 80
+			
+				HardwarePart = HardwarePart + 1
+				PowderAssembly = PowderAssembly + 1
+				
+				CutSheetPart = CutSheetPart - 1
+				CutFabricPart = CutFabricPart - 1
+				CutTubePart = CutTubePart - 1
+				SheetMetalPart = SheetMetalPart - 1
+				TPanelPart = TPanelPart - 1
+				CutTopPart = CutTopPart - 1
+				SupportPanelPart = SupportPanelPart - 1
+				
+				PemAssembly = PemAssembly - 1
+				WeldAssembly = WeldAssembly - 1
+				SteelAssembly = SteelAssembly - 1
+				TPanelAssembly = TPanelAssembly - 1
+				CutTopAssembly = CutTopAssembly - 1
+				NonedAssembly = NonedAssembly - 1
+				
+			Case 340
+			
+				HardwarePart = HardwarePart + 1
+				SheetMetalPart = SheetMetalPart + 1
+				CutTubePart = CutTubePart + 1
+				
+				CutSheetPart = CutSheetPart - 1
+				CutFabricPart = CutFabricPart - 1
+				TPanelPart = TPanelPart - 1
+				CutTopPart = CutTopPart - 1
+				SupportPanelPart = SupportPanelPart - 1
+				
+				PemAssembly = PemAssembly - 1
+				WeldAssembly = WeldAssembly - 1
+				PowderAssembly = PowderAssembly - 1
+				SteelAssembly = SteelAssembly - 1
+				TPanelAssembly = TPanelAssembly - 1
+				CutTopAssembly = CutTopAssembly - 1
+				NonedAssembly = NonedAssembly - 1
+				
+			Case 360
+			
+				HardwarePart = HardwarePart + 1
+				SheetMetalPart = SheetMetalPart + 1
+				CutTubePart = CutTubePart + 1
+				PemAssembly = PemAssembly + 1
+	
+				CutSheetPart = CutSheetPart - 1
+				CutFabricPart = CutFabricPart - 1
+				TPanelPart = TPanelPart - 1
+				CutTopPart = CutTopPart - 1
+				SupportPanelPart = SupportPanelPart - 1
+				
+				WeldAssembly = WeldAssembly - 1
+				PowderAssembly = PowderAssembly - 1
+				SteelAssembly = SteelAssembly - 1
+				TPanelAssembly = TPanelAssembly - 1
+				CutTopAssembly = CutTopAssembly - 1
+				NonedAssembly = NonedAssembly - 1
+	
+			Case 370
+			
+				HardwarePart = HardwarePart + 1
+				SheetMetalPart = SheetMetalPart + 1
+				CutTubePart = CutTubePart + 1
+				PemAssembly = PemAssembly + 1
+	
+				CutSheetPart = CutSheetPart - 1
+				CutFabricPart = CutFabricPart - 1
+				TPanelPart = TPanelPart - 1
+				CutTopPart = CutTopPart - 1
+				SupportPanelPart = SupportPanelPart - 1
+				
+				WeldAssembly = WeldAssembly - 1
+				PowderAssembly = PowderAssembly - 1
+				SteelAssembly = SteelAssembly - 1
+				TPanelAssembly = TPanelAssembly - 1
+				CutTopAssembly = CutTopAssembly - 1
+				NonedAssembly = NonedAssembly - 1
+	
+			Case 390
+			
+				HardwarePart = HardwarePart + 1
+				SheetMetalPart = SheetMetalPart + 1
+				CutTubePart = CutTubePart + 1
+				PemAssembly = PemAssembly + 1
+				WeldAssembly = WeldAssembly + 1
+	
+				CutSheetPart = CutSheetPart - 1
+				CutFabricPart = CutFabricPart - 1
+				TPanelPart = TPanelPart - 1
+				CutTopPart = CutTopPart - 1
+				SupportPanelPart = SupportPanelPart - 1
+				
+				PowderAssembly = PowderAssembly - 1
+				SteelAssembly = SteelAssembly - 1
+				TPanelAssembly = TPanelAssembly - 1
+				CutTopAssembly = CutTopAssembly - 1
+				NonedAssembly = NonedAssembly - 1
+	
+			Case 411
+			
+				HardwarePart = HardwarePart + 1
+				CutTopPart = CutTopPart + 1
+	
+				CutSheetPart = CutSheetPart - 1
+				CutFabricPart = CutFabricPart - 1
+				CutTubePart = CutTubePart - 1
+				SheetMetalPart = SheetMetalPart - 1
+				TPanelPart = TPanelPart - 1
+				SupportPanelPart = SupportPanelPart - 1
+				
+				PemAssembly = PemAssembly - 1
+				WeldAssembly = WeldAssembly - 1
+				PowderAssembly = PowderAssembly - 1
+				SteelAssembly = SteelAssembly - 1
+				TPanelAssembly = TPanelAssembly - 1
+				CutTopAssembly = CutTopAssembly - 1
+				NonedAssembly = NonedAssembly - 1
+	
+			Case 460
+			
+				TPanelPart = TPanelPart + 1
+				SupportPanelPart = SupportPanelPart + 1
+	
+				CutSheetPart = CutSheetPart - 1
+				CutFabricPart = CutFabricPart - 1
+				CutTubePart = CutTubePart - 1
+				SheetMetalPart = SheetMetalPart - 1
+				CutTopPart = CutTopPart - 1
+				HardwarePart = HardwarePart - 1
+				
+				PemAssembly = PemAssembly - 1
+				WeldAssembly = WeldAssembly - 1
+				PowderAssembly = PowderAssembly - 1
+				SteelAssembly = SteelAssembly - 1
+				TPanelAssembly = TPanelAssembly - 1
+				CutTopAssembly = CutTopAssembly - 1
+				NonedAssembly = NonedAssembly - 1
+	
+			Case 500
+			
+				TPanelPart = TPanelPart + 1
+				SupportPanelPart = SupportPanelPart + 1
+	
+				CutSheetPart = CutSheetPart - 1
+				CutFabricPart = CutFabricPart - 1
+				CutTubePart = CutTubePart - 1
+				SheetMetalPart = SheetMetalPart - 1
+				CutTopPart = CutTopPart - 1
+				HardwarePart = HardwarePart - 1
+				
+				PemAssembly = PemAssembly - 1
+				WeldAssembly = WeldAssembly - 1
+				PowderAssembly = PowderAssembly - 1
+				SteelAssembly = SteelAssembly - 1
+				TPanelAssembly = TPanelAssembly - 1
+				CutTopAssembly = CutTopAssembly - 1
+				NonedAssembly = NonedAssembly - 1
+	
+			Case 510
+			
+				HardwarePart = HardwarePart + 1
+				TPanelPart = TPanelPart + 1
+				SupportPanelPart = SupportPanelPart + 1
+				CutTopPart = CutTopPart + 1
+	
+				CutSheetPart = CutSheetPart - 1
+				CutFabricPart = CutFabricPart - 1
+				CutTubePart = CutTubePart - 1
+				SheetMetalPart = SheetMetalPart - 1
+				
+				PemAssembly = PemAssembly - 1
+				WeldAssembly = WeldAssembly - 1
+				PowderAssembly = PowderAssembly - 1
+				SteelAssembly = SteelAssembly - 1
+				TPanelAssembly = TPanelAssembly - 1
+				CutTopAssembly = CutTopAssembly - 1
+				NonedAssembly = NonedAssembly - 1
+	
+			Case 600
+			
+				HardwarePart = HardwarePart + 1
+				PowderAssembly = PowderAssembly + 1
+	
+				CutSheetPart = CutSheetPart - 1
+				CutFabricPart = CutFabricPart - 1
+				CutTubePart = CutTubePart - 1
+				SheetMetalPart = SheetMetalPart - 1
+				TPanelPart = TPanelPart - 1
+				CutTopPart = CutTopPart - 1
+				SupportPanelPart = SupportPanelPart - 1
+				
+				PemAssembly = PemAssembly - 1
+				WeldAssembly = WeldAssembly - 1
+				SteelAssembly = SteelAssembly - 1
+				TPanelAssembly = TPanelAssembly - 1
+				CutTopAssembly = CutTopAssembly - 1
+				NonedAssembly = NonedAssembly - 1
+	
+			Case 620
+			
+				HardwarePart = HardwarePart + 1
+				SheetMetalPart = SheetMetalPart + 1
+				PowderAssembly = PowderAssembly + 1
+	
+				CutSheetPart = CutSheetPart - 1
+				CutFabricPart = CutFabricPart - 1
+				CutTubePart = CutTubePart - 1
+				TPanelPart = TPanelPart - 1
+				CutTopPart = CutTopPart - 1
+				SupportPanelPart = SupportPanelPart - 1
+				
+				PemAssembly = PemAssembly - 1
+				WeldAssembly = WeldAssembly - 1
+				SteelAssembly = SteelAssembly - 1
+				TPanelAssembly = TPanelAssembly - 1
+				CutTopAssembly = CutTopAssembly - 1
+				NonedAssembly = NonedAssembly - 1
+	
+			Case 630
+			
+				HardwarePart = HardwarePart + 1
+				CutSheetPart = CutSheetPart + 1
+				TPanelAssembly = TPanelAssembly + 1
+				PowderAssembly = PowderAssembly + 1
+				CutTopAssembly = CutTopAssembly + 1
+	
+				CutFabricPart = CutFabricPart - 1
+				CutTubePart = CutTubePart - 1
+				SheetMetalPart = SheetMetalPart - 1
+				TPanelPart = TPanelPart - 1
+				CutTopPart = CutTopPart - 1
+				SupportPanelPart = SupportPanelPart - 1
+				
+				PemAssembly = PemAssembly - 1
+				WeldAssembly = WeldAssembly - 1
+				SteelAssembly = SteelAssembly - 1
+				NonedAssembly = NonedAssembly - 1
+	
+			Case 700
+			
+				HardwarePart = HardwarePart + 1
+				CutSheetPart = CutSheetPart + 1
+				PowderAssembly = PowderAssembly + 1
+				CutTopAssembly = CutTopAssembly + 1
+	
+				CutFabricPart = CutFabricPart - 1
+				CutTubePart = CutTubePart - 1
+				SheetMetalPart = SheetMetalPart - 1
+				TPanelPart = TPanelPart - 1
+				CutTopPart = CutTopPart - 1
+				SupportPanelPart = SupportPanelPart - 1
+				
+				PemAssembly = PemAssembly - 1
+				WeldAssembly = WeldAssembly - 1
+				SteelAssembly = SteelAssembly - 1
+				TPanelAssembly = TPanelAssembly - 1
+				NonedAssembly = NonedAssembly - 1
+	
+			Case 735
+			
+				HardwarePart = HardwarePart + 1
+	
+				CutSheetPart = CutSheetPart - 1
+				CutFabricPart = CutFabricPart - 1
+				CutTubePart = CutTubePart - 1
+				SheetMetalPart = SheetMetalPart - 1
+				TPanelPart = TPanelPart - 1
+				CutTopPart = CutTopPart - 1
+				SupportPanelPart = SupportPanelPart - 1
+				
+				PemAssembly = PemAssembly - 1
+				WeldAssembly = WeldAssembly - 1
+				PowderAssembly = PowderAssembly - 1
+				SteelAssembly = SteelAssembly - 1
+				TPanelAssembly = TPanelAssembly - 1
+				CutTopAssembly = CutTopAssembly - 1
+				NonedAssembly = NonedAssembly - 1
+				
+			Case 750
+			
+				HardwarePart = HardwarePart + 1
+				CutSheetPart = CutSheetPart + 1
+				CutFabricPart = CutFabricPart + 1
+				PowderAssembly = PowderAssembly + 1
+	
+				CutTubePart = CutTubePart - 1
+				SheetMetalPart = SheetMetalPart - 1
+				TPanelPart = TPanelPart - 1
+				CutTopPart = CutTopPart - 1
+				SupportPanelPart = SupportPanelPart - 1
+				
+				PemAssembly = PemAssembly - 1
+				WeldAssembly = WeldAssembly - 1
+				SteelAssembly = SteelAssembly - 1
+				TPanelAssembly = TPanelAssembly - 1
+				CutTopAssembly = CutTopAssembly - 1
+				NonedAssembly = NonedAssembly - 1
+			
+			Case 760
+				
+				HardwarePart = HardwarePart + 1
+				PowderAssembly = PowderAssembly + 1
+				SteelAssembly = SteelAssembly + 1
+				
+				CutSheetPart = CutSheetPart - 1
+				CutFabricPart = CutFabricPart - 1
+				CutTubePart = CutTubePart - 1
+				SheetMetalPart = SheetMetalPart - 1
+				TPanelPart = TPanelPart - 1
+				CutTopPart = CutTopPart - 1
+				SupportPanelPart = SupportPanelPart - 1
+				
+				PemAssembly = PemAssembly - 1
+				WeldAssembly = WeldAssembly - 1
+				TPanelAssembly = TPanelAssembly - 1
+				CutTopAssembly = CutTopAssembly - 1
+				NonedAssembly = NonedAssembly - 1
+			
+			Case 770
+			
+				HardwarePart = HardwarePart + 1
+				PowderAssembly = PowderAssembly + 1
+				SteelAssembly = SteelAssembly + 1
+	
+				CutSheetPart = CutSheetPart - 1
+				CutFabricPart = CutFabricPart - 1
+				CutTubePart = CutTubePart - 1
+				SheetMetalPart = SheetMetalPart - 1
+				TPanelPart = TPanelPart - 1
+				CutTopPart = CutTopPart - 1
+				SupportPanelPart = SupportPanelPart - 1
+	
+				PemAssembly = PemAssembly - 1
+				WeldAssembly = WeldAssembly - 1
+				TPanelAssembly = TPanelAssembly - 1
+				CutTopAssembly = CutTopAssembly - 1
+				NonedAssembly = NonedAssembly - 1
+				
+			Case 790
+			
+				HardwarePart = HardwarePart + 1
+				PowderAssembly = PowderAssembly + 1
+				SteelAssembly = SteelAssembly + 1
+	
+				CutSheetPart = CutSheetPart - 1
+				CutFabricPart = CutFabricPart - 1
+				CutTubePart = CutTubePart - 1
+				SheetMetalPart = SheetMetalPart - 1
+				TPanelPart = TPanelPart - 1
+				CutTopPart = CutTopPart - 1
+				SupportPanelPart = SupportPanelPart - 1
+	
+				PemAssembly = PemAssembly - 1
+				WeldAssembly = WeldAssembly - 1
+				TPanelAssembly = TPanelAssembly - 1
+				CutTopAssembly = CutTopAssembly - 1
+				NonedAssembly = NonedAssembly - 1
+			
+			Case 950
+			
+				PowderAssembly = PowderAssembly + 1
+				SteelAssembly = SteelAssembly + 1
+				CutTopAssembly = CutTopAssembly + 1
+				FabricAssembly = FabricAssembly + 1
+	
+				CutSheetPart = CutSheetPart - 1
+				CutFabricPart = CutFabricPart - 1
+				CutTubePart = CutTubePart - 1
+				SheetMetalPart = SheetMetalPart - 1
+				TPanelPart = TPanelPart - 1
+				CutTopPart = CutTopPart - 1
+				SupportPanelPart = SupportPanelPart - 1
+				HardwarePart = HardwarePart - 1
+	
+				PemAssembly = PemAssembly - 1
+				WeldAssembly = WeldAssembly - 1
+				TPanelAssembly = TPanelAssembly - 1
+				NonedAssembly = NonedAssembly - 1
+	
+			Case Else
+				
+		End Select
+		
+	Catch
+	
+	End Try
+	
+	']
+	
+	'['ERP_TEMPLATE
+	
+	Try
+	
+		ERP_TEMPLATE_Value = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("ERP_TEMPLATE").Value
+		
+		Select Case ERP_TEMPLATE_Value
+		
+			Case "NONE"
+			
+				NonedAssembly = NonedAssembly + 5
+				NonedPart = NonedPart + 5
+	
+				CutSheetPart = CutSheetPart - 5
+				CutFabricPart = CutFabricPart - 5
+				CutTubePart = CutTubePart - 5
+				SheetMetalPart = SheetMetalPart - 5
+				TPanelPart = TPanelPart - 5
+				CutTopPart = CutTopPart - 5
+				SupportPanelPart = SupportPanelPart - 5
+				HardwarePart = HardwarePart - 5
+				
+				PemAssembly = PemAssembly - 5
+				WeldAssembly = WeldAssembly - 5
+				PowderAssembly = PowderAssembly - 5
+				SteelAssembly = SteelAssembly - 5
+				TPanelAssembly = TPanelAssembly - 5
+				CutTopAssembly = CutTopAssembly - 5
+				FabricAssembly = FabricAssembly - 5
+				
+			Case "OPER_OVERRIDE"
+			
+				NonedAssembly = NonedAssembly + 5
+	
+				CutSheetPart = CutSheetPart - 5
+				CutFabricPart = CutFabricPart - 5
+				CutTubePart = CutTubePart - 5
+				SheetMetalPart = SheetMetalPart - 5
+				TPanelPart = TPanelPart - 5
+				CutTopPart = CutTopPart - 5
+				SupportPanelPart = SupportPanelPart - 5
+				HardwarePart = HardwarePart - 5
+				
+				PemAssembly = PemAssembly - 5
+				WeldAssembly = WeldAssembly - 5
+				PowderAssembly = PowderAssembly - 5
+				SteelAssembly = SteelAssembly - 5
+				TPanelAssembly = TPanelAssembly - 5
+				CutTopAssembly = CutTopAssembly - 5
+				
+			Case Else
+				
+		End Select
+		
+	Catch
+	
+	End Try
+	
+	']
+	
+	'['Wildcards
+	
+	'['CSOPTs
+	
+		Try
+		
+			OptPlaceholder = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("CSOPT1").Value
+				
+			CutSheetPart = CutSheetPart + 3
+				
+		Catch
+	
+		End Try
+		
+		Try
+		
+			OptPlaceholder = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("CSOPT2").Value
+			
+			CutSheetPart = CutSheetPart + 3
+	
+		Catch
+	
+		End Try
+	
+	']
+	
+	'['CTOPTs
+	
+		Try
+		
+			OptPlaceholder = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("CTOPT1").Value
+				
+			CutTubePart = CutTubePart + 3
+				
+		Catch
+	
+		End Try
+		
+		Try
+		
+			OptPlaceholder = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("CTOPT2").Value
+			
+			CutTubePart = CutTubePart + 3
+	
+		Catch
+	
+		End Try
+	
+	']
+	
+	'['SMOPTs
+	
+		Try
+		
+			OptPlaceholder = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("SMOPT1").Value
+				
+			SheetMetalPart = SheetMetalPart + 3
+				
+		Catch
+	
+		End Try
+		
+		Try
+		
+			OptPlaceholder = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("SMOPT2").Value
+			
+			SheetMetalPart = SheetMetalPart + 3
+	
+		Catch
+	
+		End Try
+		
+		Try
+		
+			OptPlaceholder = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("SMOPT3").Value
+			
+			SheetMetalPart = SheetMetalPart + 3
+	
+		Catch
+	
+		End Try
+	
+	']
+	
+	'['PANELOPTs
+	
+		Try
+		
+			OptPlaceholder = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("PANELOPT1").Value
+				
+			TPanelPart = TPanelPart + 3
+			SupportPanelPart = SupportPanelPart + 3
+			TPanelAssembly = TPanelAssembly + 3
+				
+		Catch
+		
+		End Try
+		
+		Try
+		
+			OptPlaceholder = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("PANELOPT2").Value
+			
+			TPanelPart = TPanelPart + 3
+			SupportPanelPart = SupportPanelPart + 3
+			TPanelAssembly = TPanelAssembly + 3
+	
+		Catch
+	
+		End Try
+	
+	']
+	
+	'['TOPOPTs
+	
+		Try
+		
+			OptPlaceholder = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("TOPOPT1").Value
+				
+			CutTopPart = CutTopPart + 3
+			CutTopAssembly = CutTopAssembly + 3
+				
+		Catch
+		
+		End Try
+		
+		Try
+		
+			OptPlaceholder = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("TOPOPT2").Value
+			
+			CutTopPart = CutTopPart + 3
+			CutTopAssembly = CutTopAssembly + 3
+	
+		Catch
+	
+		End Try
+	
+		Try
+		
+			OptPlaceholder = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("TOPOPT3").Value
+			
+			CutTopPart = CutTopPart + 3
+			CutTopAssembly = CutTopAssembly + 3
+	
+		Catch
+			
+		End Try
+	
+		Try
+		
+			OptPlaceholder = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("TOPOPT4").Value
+			
+			CutTopPart = CutTopPart + 3
+			CutTopAssembly = CutTopAssembly + 3
+	
+		Catch
+			
+		End Try
+	
+	']
+	
+	'['PEMOPT
+	
+		Try
+		
+			OptPlaceholder = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("PEMOPT1").Value
+				
+			PemAssembly = PemAssembly + 3
+				
+		Catch
+		
+		End Try
+	
+	']
+	
+	'['WELDOPTs
+	
+		Try
+		
+			OptPlaceholder = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("WELDOPT1").Value
+				
+			WeldAssembly = WeldAssembly + 3
+				
+		Catch
+		
+		End Try
+		
+		Try
+		
+			OptPlaceholder = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("WELDOPT2").Value
+				
+			WeldAssembly = WeldAssembly + 3
+				
+		Catch
+		
+		End Try
+	
+	']
+	
+	'['POWOPTs
+	
+		Try
+		
+			OptPlaceholder = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("POWOPT1").Value
+				
+			PowderAssembly = PowderAssembly + 3
+			SteelAssembly = SteelAssembly + 3
+				
+		Catch
+		
+		End Try
+		
+		Try
+		
+			OptPlaceholder = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("POWOPT2").Value
+				
+			PowderAssembly = PowderAssembly + 3
+			SteelAssembly = SteelAssembly + 3
+				
+		Catch
+		
+		End Try
+	
+	']
+	
+	']
+	
+	'['Confidence Calculation and Sorting
+	
+	CutSheetPartConfidence = Round((CutSheetPart / CutSheetPartMax), 2)
+	CutFabricPartConfidence = Round((CutFabricPart / CutFabricPartMax), 2)
+	CutTubePartConfidence = Round((CutTubePart / CutTubePartMax), 2)
+	SheetMetalPartConfidence = Round((SheetMetalPart / SheetMetalPartMax), 2)
+	TPanelPartConfidence = Round((TPanelPart / TPanelPartMax), 2)
+	CutTopPartConfidence = Round((CutTopPart / CutTopPartMax), 2)
+	SupportPanelPartConfidence = Round((SupportPanelPart / SupportPanelPartMax), 2)
+	HardwarePartConfidence = Round((HardwarePart / HardwarePartMax), 2)
+	NonedPartConfidence = Round((NonedPart / NonedPartMax), 2)
+	
+	PemAssemblyConfidence = Round((PemAssembly / PemAssemblyMax), 2)
+	WeldAssemblyConfidence = Round((WeldAssembly / WeldAssemblyMax), 2)
+	PowderAssemblyConfidence = Round((PowderAssembly / PowderAssemblyMax), 2)
+	SteelAssemblyConfidence = Round((SteelAssembly / SteelAssemblyMax), 2)
+	TPanelAssemblyConfidence = Round((TPanelAssembly / TPanelAssemblyMax), 2)
+	CutTopAssemblyConfidence = Round((CutTopAssembly / CutTopAssemblyMax), 2)
+	FabricAssemblyConfidence = Round((FabricAssembly / FabricAssemblyMax), 2)
+	NonedAssemblyConfidence = Round((NonedAssembly / NonedAssemblyMax), 2)
+	
+	ConfidenceArray = {{"Cut Sheet Part", CutSheetPartConfidence},{"Cut Fabric Part", CutFabricPartConfidence},{"Cut Tube Part", CutTubePartConfidence},{"Sheet Metal Part", SheetMetalPartConfidence},{"T Panel Part", TPanelPartConfidence},{"Cut Top Part", CutTopPartConfidence},{"Support Panel Part", SupportPanelPartConfidence},{"Hardware Part", HardwarePartConfidence},{"None'd Part", NonedPartConfidence},{"Pem Assembly", PemAssemblyConfidence},{"Weld Assembly", WeldAssemblyConfidence},{"Powder Assembly", PowderAssemblyConfidence},{"Steel Assembly", SteelAssemblyConfidence},{"T Panel Assembly", TPanelAssemblyConfidence},{"Cut Top Assembly", CutTopAssemblyConfidence},{"Fabric Assembly", FabricAssemblyConfidence},{"None'd Assembly", NonedAssemblyConfidence}}
+	Length = ConfidenceArray.GetUpperBound(0)
+	
+	ConfidenceArraySorted = ConfidenceArray
+	
+	For i = 0 To Length
+	
+	TextString = TextString & ConfidenceArray(i, 0) & " : " & CStr(ConfidenceArray(i, 1)) & vbNewLine
+	
+	Next
+	
+	For i = 0 To Length - 1
+	
+		For j = 0 To Length - 1
+		
+			If ConfidenceArray(j, 1) < ConfidenceArray(j + 1, 1) Then
+			
+				ConfidenceArrayTempValue = ConfidenceArray(j + 1, 1)
+				ConfidenceArrayTempLabel = ConfidenceArray(j + 1, 0)
+				ConfidenceArray(j + 1, 1) = ConfidenceArray(j, 1)
+				ConfidenceArray(j + 1, 0) = ConfidenceArray(j, 0)
+				ConfidenceArray(j, 1) = ConfidenceArrayTempValue
+				ConfidenceArray(j, 0) = ConfidenceArrayTempLabel
+			
+			End If
+			
+		Next j
+	
+	Next i
+	
+	For i = 0 To Length
+	
+	TextStringSorted = TextStringSorted & ConfidenceArray(i, 0) & " : " & CStr(ConfidenceArray(i, 1)) & vbNewLine
+	
+	Next i
+	
+	TextStringSorted = oDoc.FullFileName & vbNewLine & vbNewLine & TextStringSorted
+	']
+	
+	'MessageBox.Show(textString, "Entire Array!")
+'	MessageBox.Show(TextStringSorted, "Entire Sorted Array!")
+	
+	PartType = ConfidenceArray(0, 0)
+	ConfidenceLevel = ConfidenceArray(0, 1) * 100
+	
+	'MessageBox.Show("I am " & ConfidenceLevel & "% confident that this inventor document is a " & PartType & ".", "PartType!")
+	
+	'['Error Handling
+	
+	If ERRORS <> "" Then MessageBox.Show(ERRORS, "ERROR!")
+	
+	']
+	Return PartType
+
+Catch
+
+	MessageBox.Show("ERROR in identifying " & oDoc.FullFileName, "ERROR!")
+	
+End Try
+	
+End Function
+
+'''********************************'''
+'''********************************'''
+'''TEXT WRITING FUNCTION
+'''********************************'''
+'''********************************'''
+
+Function WriteText(File, Text, Optional EndWithNewLines = 2)
+'''Creator: Chris Kuchman
+'''Date Made: 1/27/2016
+'''Date Updated: 2/6/2016 - CAK
+'''Description: This function is used to write text to a text file. The first arguement is the specific text file you
+'''are writing to and the second is the string you want to pass. If you want the string to be broken up into seperate
+'''lines then add a \n to the string line. By default the string will add 2 new lines between each new string added,
+'''but if you want to add less or more new lines then pass a third argument with the number of new lines generated.
+'''(0 will just append the line to the last line)
+
+'Sets a stream to pass the text into the notepad file (filestreams only do btyes so we need a stream writer to convert)
+Dim fs As New System.IO.FileStream(File, System.IO.FileMode.Append, System.IO.FileAccess.Write)
+Dim theLog As New System.IO.StreamWriter(fs)
+
+'Breaks the string up into new lines
+Dim StringArray() As String = Split(Text, "\n ")
+
+'For each split string, write to the file and add a new line (except for the very last line)
+For i As Integer = 0 To StringArray.Length - 1
+    If i < StringArray.Length - 1  Then
+        theLog.WriteLine(StringArray(i))
+    Else
+        theLog.Write(StringArray(i)) 'Write will not add a new line by default like WriteLine
+    End If
+Next
+
+Dim j As Integer = 0
+
+'Add the number of new lines passed into the optional parameter, will loop once if the default value is used
+While EndWithNewLines > j
+    theLog.WriteLine()
+    j += 1
+End While
+'?
+'Closes the stream
+theLog.Close()
+End Function

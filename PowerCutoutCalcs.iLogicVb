@@ -1,0 +1,238 @@
+﻿PWR = iProperties.Value("Custom", "PWR") 
+FileName = ThisDoc.FileName(True)		 'with extension
+
+'Descriptions
+'ShapePower - shape of the power cutout (REC or RND)
+'DepthPower - depth of the power unit
+'WidthPower - width of the power unit
+'HeightPower - height of the power unit
+'DepthCut - Depth Of the cut out In the table with squared corners (uses dog ears). Must Be To the nearest 1/10000"
+'WidthCut - Width of the cut out in the table with squared corners (uses dog ears). Must Be to the nearest 1/10000"
+'CornerRadiusCut - Corner radius the power calls for, if under 1/4" it will just be dog eared.
+Select Case PWR
+	Case "OHM2", "OHM3", "OHM4", "OHM5", "OHM6", "MHO2", "MHO3", "MHO4", "MHO5", "MHO6", "MHOB2", "MHOB3", "MHOB4", "MHOB5"
+		ShapePower = "REC"
+		PowerSize = CDbl(Right(PWR, 1))
+		DepthPower = 4	'defaulted to same size as cut, not updated yet to match actual
+		WidthPower = 2 + (1.5 * PowerSize)	'defaulted to same size as cut, not updated yet to match actual
+		HeightPower = 5	'defaulted to arbitrarily large number to prevent false positives, not updated yet to match actual
+		DepthCut = 4
+		WidthCut = 2 + (1.5 * PowerSize)
+		CornerRadiusCut = .001
+	Case "ELLORA2", "ELLORA3", "ELLORA4", "ELLORA5", "ELLORA6", "ELLORA7", "ELLORA8"
+		ShapePower = "REC"
+		PowerSize = CDbl(Right(PWR, 1))
+		DepthPower = 5	'defaulted to same size as cut, not updated yet to match actual
+		WidthPower = 2 + (1.5 * PowerSize)	'defaulted to same size as cut, not updated yet to match actual
+		HeightPower = 5	'defaulted to arbitrarily large number to prevent false positives, not updated yet to match actual
+		DepthCut = 5
+		WidthCut = 2 + (1.5 * PowerSize)
+		CornerRadiusCut = .001
+	Case "ELLORAQI"
+		ShapePower = "REC"
+		DepthPower = 4.875	'defaulted to same size as cut, not updated yet to match actual
+		WidthPower = 10.875	'defaulted to same size as cut, not updated yet to match actual
+		HeightPower = 5	'defaulted to arbitrarily large number to prevent false positives, not updated yet to match actual
+		DepthCut = 4.875
+		WidthCut = 10.875
+		CornerRadiusCut = .001
+	Case "E2X2", "E2X3", "E2X4", "E2X5", "E2X6", "E2X7", "E2X8"
+		ShapePower = "REC"
+		PowerSize = CDbl(Right(PWR, 1))
+		DepthPower = 9.8125	'defaulted to same size as cut, not updated yet to match actual
+		WidthPower = 2 + (1.5 * PowerSize)	'defaulted to same size as cut, not updated yet to match actual
+		HeightPower = 5	'defaulted to arbitrarily large number to prevent false positives, not updated yet to match actual
+		DepthCut = 9.8125
+		WidthCut = 2 + (1.5 * PowerSize)
+		CornerRadiusCut = .001
+	Case "AXIL2", "AXIL3", "AXIL4", "AXIL5", "AXIL6"
+		ShapePower = "REC"
+		PowerSize = CDbl(Right(PWR, 1))
+		DepthPower = 2	'defaulted to same size as cut, not updated yet to match actual
+		WidthPower = .75 + (1.5 * PowerSize)	'defaulted to same size as cut, not updated yet to match actual
+		HeightPower = 5	'defaulted to arbitrarily large number to prevent false positives, not updated yet to match actual
+		DepthCut = 2
+		WidthCut = .75 + (1.5 * PowerSize)	
+		CornerRadiusCut = .001
+	Case "GC2", "GT2"
+		ShapePower = "REC"
+		DepthPower = 3.75	'defaulted to same size as cut, not updated yet to match actual
+		WidthPower = 5	'defaulted to same size as cut, not updated yet to match actual
+		HeightPower = 5	'defaulted to arbitrarily large number to prevent false positives, not updated yet to match actual
+		DepthCut = 3.75
+		WidthCut = 5
+		CornerRadiusCut = .001
+	Case "MINI2"
+		ShapePower = "REC"
+		DepthPower = 2	'defaulted to same size as cut, not updated yet to match actual
+		WidthPower = 3.25	'defaulted to same size as cut, not updated yet to match actual
+		HeightPower = 5	'defaulted to arbitrarily large number to prevent false positives, not updated yet to match actual
+		DepthCut = 2
+		WidthCut = 3.25
+		CornerRadiusCut = .001
+	Case "MINIPORT4"
+		ShapePower = "REC"
+		DepthPower = 2.5	'defaulted to same size as cut, not updated yet to match actual
+		WidthPower = 6	'defaulted to same size as cut, not updated yet to match actual
+		HeightPower = 5	'defaulted to arbitrarily large number to prevent false positives, not updated yet to match actual
+		DepthCut = 2.5
+		WidthCut = 6
+		CornerRadiusCut = .19
+	Case "INTERPORT4"
+		ShapePower = "REC"
+		DepthPower = 4.5	'defaulted to same size as cut, not updated yet to match actual
+		WidthPower = 6	'defaulted to same size as cut, not updated yet to match actual
+		HeightPower = 5	'defaulted to arbitrarily large number to prevent false positives, not updated yet to match actual
+		DepthCut = 4.5
+		WidthCut = 6	
+		CornerRadiusCut = .19
+		WARNINGS = WARNINGS & " Interport may not be compatible with the modesty or wire manager (I:" & FileName & ")\n"
+	Case "NACRE4"
+		ShapePower = "REC"
+		DepthPower = 3	'defaulted to same size as cut, not updated yet to match actual
+		WidthPower = 6.9375	'defaulted to same size as cut, not updated yet to match actual
+		HeightPower = 5	'defaulted to arbitrarily large number to prevent false positives, not updated yet to match actual
+		DepthCut = 3
+		WidthCut = 6.9375
+		CornerRadiusCut = .375
+	Case "DEAN2"
+		ShapePower = "REC"
+		DepthPower = 1.9375	'defaulted to same size as cut, not updated yet to match actual
+		WidthPower = 4.8125	'defaulted to same size as cut, not updated yet to match actual
+		HeightPower = 5	'defaulted to arbitrarily large number to prevent false positives, not updated yet to match actual
+		DepthCut = 1.9375
+		WidthCut = 4.875
+		CornerRadiusCut = .001
+	Case "DEAN3"
+		ShapePower = "REC"
+		DepthPower = 1.9375	'defaulted to same size as cut, not updated yet to match actual
+		WidthPower = 6.25	'defaulted to same size as cut, not updated yet to match actual
+		HeightPower = 5	'defaulted to arbitrarily large number to prevent false positives, not updated yet to match actual
+		DepthCut = 1.9375
+		WidthCut = 6.25
+		CornerRadiusCut = .001
+	Case "DEAN4"
+		ShapePower = "REC"
+		DepthPower = 1.9375	'defaulted to same size as cut, not updated yet to match actual
+		WidthPower = 7.8125	'defaulted to same size as cut, not updated yet to match actual
+		HeightPower = 5	'defaulted to arbitrarily large number to prevent false positives, not updated yet to match actual
+		DepthCut = 1.9375
+		WidthCut = 7.8125
+		CornerRadiusCut = .001
+	Case "DEAN5"
+		ShapePower = "REC"
+		DepthPower = 1.9375	'defaulted to same size as cut, not updated yet to match actual
+		WidthPower = 9.3125	'defaulted to same size as cut, not updated yet to match actual
+		HeightPower = 5	'defaulted to arbitrarily large number to prevent false positives, not updated yet to match actual
+		DepthCut = 1.9375
+		WidthCut = 9.3125
+		CornerRadiusCut = .001
+	Case "CC700"
+		ShapePower = "REC"
+		DepthPower = 5.75	'defaulted to same size as cut, not updated yet to match actual
+		WidthPower = 7.125	'defaulted to same size as cut, not updated yet to match actual
+		HeightPower = 5	'defaulted to arbitrarily large number to prevent false positives, not updated yet to match actual
+		DepthCut = 5.75
+		WidthCut = 7.125
+		CornerRadiusCut = .25
+	Case "CC500"
+		ShapePower = "REC"
+		DepthPower = 5.75	'defaulted to same size as cut, not updated yet to match actual
+		WidthPower = 5.75	'defaulted to same size as cut, not updated yet to match actual
+		HeightPower = 5	'defaulted to arbitrarily large number to prevent false positives, not updated yet to match actual
+		DepthCut = 5.75
+		WidthCut = 5.75
+		CornerRadiusCut = .25
+	Case "CC202"
+		ShapePower = "REC"
+		DepthPower = 3.25	'defaulted to same size as cut, not updated yet to match actual
+		WidthPower = 7	'defaulted to same size as cut, not updated yet to match actual
+		HeightPower = 5	'defaulted to arbitrarily large number to prevent false positives, not updated yet to match actual
+		DepthCut = 3.25
+		WidthCut = 7
+		CornerRadiusCut = .25
+	Case "CC1202"
+		ShapePower = "REC"
+		DepthPower = 4	'defaulted to same size as cut, not updated yet to match actual
+		WidthPower = 10	'defaulted to same size as cut, not updated yet to match actual
+		HeightPower = 5	'defaulted to arbitrarily large number to prevent false positives, not updated yet to match actual
+		DepthCut = 4
+		WidthCut = 10
+		CornerRadiusCut = .25
+	Case "MOIRE4", "NODE2", "HEMI3", "PDS4"
+		ShapePower = "RND"
+		DepthPower = 3	'defaulted to same size as cut, not updated yet to match actual
+		WidthPower = 3	'defaulted to same size as cut, not updated yet to match actual
+		HeightPower = 5	'defaulted to arbitrarily large number to prevent false positives, not updated yet to match actual
+		DepthCut = 3
+		WidthCut = 3
+	Case "SALT1", "PEPPER1"
+		ShapePower = "RND"
+		DepthPower = 1.75	'defaulted to same size as cut, not updated yet to match actual
+		WidthPower = 1.75	'defaulted to same size as cut, not updated yet to match actual
+		HeightPower = 5	'defaulted to arbitrarily large number to prevent false positives, not updated yet to match actual
+		DepthCut = 1.75
+		WidthCut = 1.75	
+	Case "ECLIPSE3"
+		ShapePower = "RND"
+		DepthPower = 4.5	'defaulted to same size as cut, not updated yet to match actual
+		WidthPower = 4.5	'defaulted to same size as cut, not updated yet to match actual
+		HeightPower = 5	'defaulted to arbitrarily large number to prevent false positives, not updated yet to match actual
+		DepthCut = 4.5
+		WidthCut = 4.5
+	Case "BURELE4", "PDC4"
+		ShapePower = "RND"
+		DepthPower = 2.25	'defaulted to same size as cut, not updated yet to match actual
+		WidthPower = 2.25	'defaulted to same size as cut, not updated yet to match actual
+		HeightPower = 5	'defaulted to arbitrarily large number to prevent false positives, not updated yet to match actual
+		DepthCut = 2.25
+		WidthCut = 2.25
+	Case "TESTWIDTH"
+		ShapePower = "REC"
+		DepthPower = 1	'defaulted to same size as cut, not updated yet to match actual
+		WidthPower = 50	'defaulted to same size as cut, not updated yet to match actual
+		HeightPower = 1	'defaulted to arbitrarily large number to prevent false positives, not updated yet to match actual
+		DepthCut = 1
+		WidthCut = 50
+		CornerRadiusCut = .25
+	Case "TESTDEPTH"
+		ShapePower = "REC"
+		DepthPower = 30	'defaulted to same size as cut, not updated yet to match actual
+		WidthPower = 1	'defaulted to same size as cut, not updated yet to match actual
+		HeightPower = 1	'defaulted to arbitrarily large number to prevent false positives, not updated yet to match actual
+		DepthCut = 30
+		WidthCut = 1
+		CornerRadiusCut = .25
+	Case "TESTHEIGHT"
+		ShapePower = "REC"
+		DepthPower = 1	'defaulted to same size as cut, not updated yet to match actual
+		WidthPower = 1	'defaulted to same size as cut, not updated yet to match actual
+		HeightPower = 30	'defaulted to arbitrarily large number to prevent false positives, not updated yet to match actual
+		DepthCut = 1
+		WidthCut = 1
+		CornerRadiusCut = .25
+	Case Else
+		ERRORS = ERRORS & " " & PWR & " Is Not a Valid Cutout Option for PWR. Use DEAN[2345], OHM[23456], MHO[23456], MHOB[2345], ELLORA[2345678], ELLORAQI, E2X[2345678], AXIL[23456], BURELE4, CC[700,500,202,1202], MOIRE4, NACRE4, NODE2, SALT1, PEPPER1, ECLIPSE3, HEMI3, GC2, GT2, MINIPORT4, MINI2, INTERPORT4, PDC4, or PDS4 (I:" & FileName & ")\n"
+		ShapePower = "REC"
+		DepthPower = 1
+		WidthPower = 1
+		HeightPower = 1
+End Select
+
+If ShapePower = "RND" Then
+	CornerRadiusCut = 0.001 'Prevents geometry from breaking that relies on this number
+End If
+
+StringCuttopPWR = ShapePower & "-" & Round(WidthCut,4) & "-" & Round(DepthCut,4) & "-" & Round(CornerRadiusCut,4)
+
+iProperties.Value("Custom", "ERRORS") = ERRORS
+iProperties.Value("Custom", "WARNINGS") = WARNINGS
+
+Parameter.Value("ShapePower") = ShapePower
+Parameter.Value("DepthPower") = DepthPower
+Parameter.Value("WidthPower") = WidthPower
+Parameter.Value("HeightPower") = HeightPower
+Parameter.Value("WidthCut") = WidthCut
+Parameter.Value("DepthCut") = DepthCut
+Parameter.Value("CornerRadiusCut") = CornerRadiusCut
+Parameter.Value("StringCuttopPWR") = StringCuttopPWR

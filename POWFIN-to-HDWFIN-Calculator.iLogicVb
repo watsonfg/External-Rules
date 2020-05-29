@@ -1,0 +1,74 @@
+﻿'''Creator: 		Chris Kuchman
+'''Creation Date:	12/17/2018
+'''Revision:		0
+'''Revision Date:	0
+'''Inputs:			Powder Finish (POWFIN)
+'''Outputs:			Hardware Finish (HDWFIN) and Errors (ERRORS)
+'''Description:		This function is intended to generate the appopriate HDWFIN for the POWFIN.
+
+FileName = ThisDoc.FileName(True)								'with extension
+
+Dim ERRORS As String = ""										'Initialize ERRORS Text
+Dim HDWFIN As String = ""										'Initialize HDWFIN Text
+Dim POWFIN As String = iProperties.Value("Custom", "POWFIN")	'Pull in Face Finish from model
+
+Select Case POWFIN
+
+Case "AB"					'Alabaster
+	HDWFIN = "SILVER"
+Case "AQU"					'Aqua
+	HDWFIN = "BK"
+Case "AZU"					'Azure Blue
+	HDWFIN = "BK"
+Case "BK"					'Black
+	HDWFIN = "BK"
+Case "BLG"					'Blue Steel
+	HDWFIN = "BK"
+Case "CH"					'Charcoal
+	HDWFIN = "BK"
+Case "FJ"					'Frosty White
+	HDWFIN = "SILVER"
+Case "FQ"					'Fashion Grey
+	HDWFIN = "SILVER"
+Case "GRG"					'Grass Green
+	HDWFIN = "BK"
+Case "GY"					'Satin Grey
+	HDWFIN = "BK"
+Case "LEY"					'Mustard Seed
+	HDWFIN = "BK"
+Case "PAG"					'Sage Green
+	HDWFIN = "BK"
+Case "PIG"					'Emerald Green
+	HDWFIN = "BK"
+Case "PRE"					'Pure Red
+	HDWFIN = "BK"
+Case "REO"					'Burnt Orange
+	HDWFIN = "BK"	
+Case "SG"					'Slate
+	HDWFIN = "BK"
+Case "SLO"					'Salmon
+	HDWFIN = "BK"
+Case "TBD"					'TBD FOR TESTING
+	HDWFIN = "BK"
+Case "V1"					'Vibrant Green
+	HDWFIN = "BK"
+Case "VER"					'Vermilion
+	HDWFIN = "BK"
+Case "WA"					'Silver (White Aluminum)
+	HDWFIN = "SILVER"
+Case "WM"					'White Markerboard
+	HDWFIN = "SILVER"
+Case "YG"					'Zing Yellow
+	HDWFIN = "BK"
+Case "ZE"					'Clear
+	HDWFIN = "BK"
+Case "RAL5020"				'Ocean Blue
+	HDWFIN = "BK"
+Case "M2"					'Dark Champagne
+	HDWFIN = "BK"
+Case Else
+	ERRORS = ERRORS & "ERROR IN POWFIN-to-HDWFIN-Calculator rule. Selected POWFIN is not in the matrix, please load POWFIN and publish rule. " & FileName & " /n"
+End Select
+
+iProperties.Value("Custom", "ERRORS") = iProperties.Value("Custom", "ERRORS") & ERRORS
+iProperties.Value("Custom", "HDWFIN") = HDWFIN

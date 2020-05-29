@@ -1,0 +1,438 @@
+﻿' <FireOthersImmediately>False</FireOthersImmediately>
+'Rule to get values from part and return to assembly
+'External rule for easier global maintenance of ALL Wood Assemblies
+
+'['External Debug Routine
+AddVbFile "DebugHelper.vb" 'Defines external rule
+Dim Dbg as New DebugHelper(ThisDoc.Document,SharedVariable)
+'Dbg.Log("Executing WoodAsm")
+'Dbg.DumpProperties()
+Try
+']
+
+'['Get driving models preference for showing "OK" testing messages via SharedVariable
+If Not SharedVariable.Exists("ShowOkMsgWoodAsm") Then 'force false
+	'MessageBox.Show("Shared Variable does NOT Exist!", "Please send 'ShowOkMsgWoodAsm' to WoodAsm")
+	ShowOkMsgWoodAsm = False
+	'MessageBox.Show("Message Boxes will show for WoodAsm values", "ShowOkMsgWoodAsm value set to 'True' ")
+Else'set to user preference
+	ShowOkMsgWoodAsm = SharedVariable("ShowOkMsgWoodAsm")
+	'MessageBox.Show("ShowOkMsgWoodAsm value: " & ShowOkMsgWoodAsm, "ShowOkMsgWoodAsm value")
+End If
+']
+
+'['Toggles to control message boxes, and get FileName
+'Toggles all Error message boxes in parts running this rule.
+'Uses Environment Variable from Computer running Inventor
+'Set to "true" for development PC and "false" for Server running Frontier cadflow.
+'(Ensures Auto Off when model Is published)
+Dim ErrMsg As String = Environ("ILOGIC_ErrMsg")
+If ErrMsg = "true" Then 
+	ShowErrMsg = True
+Else		'If the PC is missing the Enviornment Variable then ShowErrWarnMsg will be set to false 
+	ShowErrMsg = False
+	If ShowOkMsgWoodAsm = True Then
+		ShowOkMsgWoodAsm = False	'Safety rule, override true back to false in case on server
+	End If
+End If
+
+']
+
+
+'['Verify incoming arguments then get values
+app = ThisApplication
+If (Not RuleArguments.Exists("SendPartName")) Then
+	Dbg.Log("Above called External: WoodAsm, Argument SendPartName was not provided")
+	If ShowErrMsg Then MessageBox.Show("No Incoming Argument", "SendPartName")
+	ERRORS = ERRORS & "\\The external WoodAsm rule failed, tried to run but did not have the required ipt part name."
+End If
+
+SentPartName = RuleArguments("SendPartName")
+'OFF for now, is in other msgboxes If ShowOkMsgWoodAsm Then MessageBox.Show("  Sent Part Name =    " & SentPartName, "Working within " & PartName)	
+'Dbg.Log("Executing WoodAsm, SentPartName Value= " & SentPartName)
+']
+
+
+
+
+'['Must check for ERRORS in driven ipt ASAP, added 1/8/15
+Try
+	ERRORS = iProperties.Value(SentPartName, "Custom", "ERRORS")
+	iProperties.Value("Custom", "ERRORS") = iProperties.Value(SentPartName, "Custom", "ERRORS")
+Catch
+	ERRORS = ERRORS & "\\nNo ERRORS iProperty Defined for this Part or Asm"
+End Try
+If ShowOkMsgWoodAsm Then MessageBox.Show("Part:  " & SentPartName & "   ,   ERRORS: " & iProperties.Value("Custom", "ERRORS"), "ShowOkMsgWoodAsm In external rule:")
+If ERRORS <> "" Then Throw New Exception("Aborted due to... " & ERRORS)
+']
+
+
+'['scheme to assign values from part to assembly. Also checks for errors about missing iProperties
+Try
+	iProperties.Value("Custom", "SQFT") = iProperties.Value(SentPartName, "Custom", "SQFT")
+Catch
+	ERRORS = ERRORS & "\\nNo SQFT iProperty Defined for this Part or Asm"
+End Try
+If ShowOkMsgWoodAsm Then MessageBox.Show("Part:  " & SentPartName & "   ,   SQFT: " & iProperties.Value("Custom", "SQFT"), "ShowOkMsgWoodAsm In external rule:")
+
+Try
+	iProperties.Value("Custom", "EDGSEQ") = iProperties.Value(SentPartName, "Custom", "EDGSEQ")
+Catch
+	ERRORS = ERRORS & "\\nNo EDGSEQ iProperty Defined for this Part or Asm"
+End Try
+If ShowOkMsgWoodAsm Then MessageBox.Show("Part:  " & SentPartName & "   ,   EDGSEQ: " & iProperties.Value("Custom", "EDGSEQ"), "ShowOkMsgWoodAsm In external rule:")
+
+'conditional check here for EDGLFT only
+Try
+	If Not iProperties.Value("Custom", "EDGSEQ") = "NONE" Then 'only try to get EdgLft based on EDGSEQ
+		iProperties.Value(SentPartName, "Custom", "EDGLFT")=Ceil(iProperties.Value(SentPartName, "Custom", "EDGLFT"))
+		iProperties.Value("Custom", "EDGLFT") = iProperties.Value(SentPartName, "Custom", "EDGLFT")
+	End If	
+Catch
+		ERRORS = ERRORS & "\\nNo EDGLFT iProperty Defined for this Part or Asm"
+End Try
+If ShowOkMsgWoodAsm Then MessageBox.Show("Part:  " & SentPartName & "   ,   EDGLFT: " & iProperties.Value("Custom", "EDGLFT"), "ShowOkMsgWoodAsm In external rule:")
+
+'Try
+'	iProperties.Value("Custom", "ERRORS") = iProperties.Value(SentPartName, "Custom", "ERRORS")
+'Catch
+'	ERRORS = ERRORS & "\\nNo ERRORS iProperty Defined for this Part or Asm"
+'End Try
+'If ShowOkMsgWoodAsm Then MessageBox.Show("Part:  " & SentPartName & "   ,   ERRORS: " & iProperties.Value("Custom", "ERRORS"), "ShowOkMsgWoodAsm In external rule:")
+
+'''EPTYP FOR DOWELING. ADDED BY KAB on 7/19/19 EC 1420
+'''DOWEL REV CONTROL
+Try
+	iProperties.Value("Custom", "EPTYP") = iProperties.Value(SentPartName, "Custom", "EPTYP")
+Catch
+	'Do Nothing
+End Try	
+
+Try
+	iProperties.Value("Custom", "WARNINGS") = iProperties.Value(SentPartName, "Custom", "WARNINGS")
+Catch
+	ERRORS = ERRORS & "\\nNo WARNINGS iProperty Defined for this Part or Asm"
+End Try	
+If ShowOkMsgWoodAsm Then MessageBox.Show("Part:  " & SentPartName & "   ,   WARNINGS: " & iProperties.Value("Custom", "WARNINGS"), "ShowOkMsgWoodAsm In external rule:")
+
+Try
+	iProperties.Value("Custom", "RLOAD") = iProperties.Value(SentPartName, "Custom", "RLOAD")
+Catch
+	ERRORS = ERRORS & "\\nNo RLOAD iProperty Defined for this Part or Asm"
+End Try	
+If ShowOkMsgWoodAsm Then MessageBox.Show("Part:  " & SentPartName & "   ,   RLOAD: " & iProperties.Value("Custom", "RLOAD"), "ShowOkMsgWoodAsm In external rule:")
+
+Try
+	iProperties.Value("Custom", "CUTA") = iProperties.Value(SentPartName, "Custom", "CUTA")
+Catch
+	ERRORS = ERRORS & "\\nNo CUTA iProperty Defined for this Part or Asm"
+End Try	
+If ShowOkMsgWoodAsm Then MessageBox.Show("Part:  " & SentPartName & "   ,   CUTA: " & iProperties.Value("Custom", "CUTA"), "ShowOkMsgWoodAsm In external rule:")
+
+Try
+	iProperties.Value("Custom", "CUTB") = iProperties.Value(SentPartName, "Custom", "CUTB")
+Catch
+	ERRORS = ERRORS & "\\nNo CUTB iProperty Defined for this Part or Asm"
+End Try	
+If ShowOkMsgWoodAsm Then MessageBox.Show("Part:  " & SentPartName & "   ,   CUTB: " & iProperties.Value("Custom", "CUTB"), "ShowOkMsgWoodAsm In external rule:")
+
+Try
+	'conditional check here for CUTEDG1 thru 5
+	'only try to get CUTEDG# based on ipt value, don't want error msg or auto add iProperty
+	If iProperties.Value(SentPartName, "Custom", "CUTEDG1") >= 0 Then iProperties.Value("Custom", "CUTEDG1") = iProperties.Value(SentPartName, "Custom", "CUTEDG1")
+	If iProperties.Value(SentPartName, "Custom", "CUTEDG2") >= 0 Then iProperties.Value("Custom", "CUTEDG2") = iProperties.Value(SentPartName, "Custom", "CUTEDG2")
+	If iProperties.Value(SentPartName, "Custom", "CUTEDG3") >= 0 Then iProperties.Value("Custom", "CUTEDG3") = iProperties.Value(SentPartName, "Custom", "CUTEDG3")
+	If iProperties.Value(SentPartName, "Custom", "CUTEDG4") >= 0 Then iProperties.Value("Custom", "CUTEDG4") = iProperties.Value(SentPartName, "Custom", "CUTEDG4")
+	If iProperties.Value(SentPartName, "Custom", "CUTEDG5") >= 0 Then iProperties.Value("Custom", "CUTEDG5") = iProperties.Value(SentPartName, "Custom", "CUTEDG5")
+Catch
+	'''Don't return any error or warning, above will only copy values to IAM if they exist on IPT
+	'ERRORS = ERRORS & "\\n Problem trying to get CUTEDG# for this Part or Asm"
+End Try	
+
+If ERRORS <> "" Then Throw New Exception("Aborted due to... " & ERRORS)
+']
+
+'['''GH added 8/29/12, as of 1/9/13 change ManualUpdate to true to conditionally check and change each part number. 
+Try
+	'AutoUpdate Is Not tested, keep it False. Also added ruff code to check and change ErpOp
+''''************************************************************************************************************
+''''************************************************************************************************************
+ManualUpdate = False'''***just change this to true or false
+AutoUpdate = False
+
+If ManualUpdate Or AutoUpdate Then
+	OriginalPartNumber = iProperties.Value(SentPartName, "Project", "Part Number")
+	''Best To keep this next line Off, PN Is built into Main message...
+	''MessageBox.Show(OriginalPartNumber, "ist Temp Test of OriginalPartNumber")
+	If OriginalPartNumber Like "STR*" Then
+		If ShowErrMsg Then
+			''Conditional Or Automatic
+			MsgTxt = "Do you want to add 'T' Prefix to this Original Part Number? : " & OriginalPartNumber & "  "
+			i = MessageBox.Show(MsgTxt, "Add 'T' Prefix.", MessageBoxButtons.YesNo, MessageBoxIcon.None, MessageBoxDefaultButton.Button1)
+			''from testing Y=6, N=7
+			If i = 6 Then iProperties.Value(SentPartName, "Project", "Part Number") = "T" & OriginalPartNumber
+		End If
+			''Automatic, keep this next line off unless its time for a global change
+			If AutoUpdate Then iProperties.Value(SentPartName, "Project", "Part Number") = "T" & OriginalPartNumber
+	ElseIf OriginalPartNumber Like "SPPRT-PANEL-CP*" Then
+		If ShowErrMsg Then
+			MsgTxt = "Must Stop! We can't auto add 'T' Prefix because this Original Part Number : " & OriginalPartNumber & " is not a regular PN begining with STR... "
+			MessageBox.Show(MsgTxt, "Must stop trying to Add 'T' Prefix.")
+			ERRORS = ERRORS & "Must Stop! We can't auto add 'T' Prefix because this Original Part Number : " & OriginalPartNumber & " is not a regular PN begining with STR... "
+		End If
+	End If
+	
+	OriginalErpOp = iProperties.Value(SentPartName, "Custom", "ERP_OPERATION")
+	EDGSEQ = iProperties.Value(SentPartName, "Custom", "EDGSEQ")
+	POCKET = iProperties.Value(SentPartName, "Custom", "POCKET")
+	If OriginalErpOp Like "4##" Then
+		If EDGSEQ Like "[12][AB]*" Then
+			MsgTxt = "Do you want to change ErpOp from '" & OriginalErpOp & "' to 500 for the Part Number? : " & OriginalPartNumber & " With EDGSEQ of: " & EDGSEQ & "  "
+			i = MessageBox.Show(MsgTxt, "Add 'T' Prefix.", MessageBoxButtons.YesNo, MessageBoxIcon.None, MessageBoxDefaultButton.Button1)
+			''from testing Y=6, N=7
+			If i = 6 Then iProperties.Value(SentPartName, "Custom", "ERP_OPERATION") = 500
+		Else
+			'looking for no edge
+			If Not OriginalErpOp = 460 Then
+				MsgTxt = "Do you want to change ErpOp from '" & OriginalErpOp & "' to 460 for the Part Number? : " & OriginalPartNumber & " With EDGSEQ of: " & EDGSEQ & "  and with POCKET of: " & POCKET & "  "
+				i = MessageBox.Show(MsgTxt, "Add 'T' Prefix.", MessageBoxButtons.YesNo, MessageBoxIcon.None, MessageBoxDefaultButton.Button1)
+				''from testing Y=6, N=7
+				If i = 6 Then iProperties.Value(SentPartName, "Custom", "ERP_OPERATION") = 460
+			End If
+		End If
+	End If 
+End If
+Catch
+	ERRORS = ERRORS & "\\n General Error In external WoodAsm rule, Manual or Automatic add of 'T' to 'T'-Panel."
+End Try
+If ERRORS <> "" Then Throw New Exception("Aborted due to... " & ERRORS)
+']' block ends here
+
+'['Run Ensure LOD
+Try
+	iLogicVb.RunExternalRule("EnsureLod")
+Catch
+	ERRORS = ERRORS & "\\n General Error In external WoodAsm rule, Running EnsureLod rule on: " & SentPartName
+End Try
+If ERRORS <> "" Then Throw New Exception("Aborted due 2to... " & ERRORS)
+']
+
+ '['GH added some quick automated safety checks 1/3/13 to catch simple common issues
+Try
+	If Not iProperties.Value(SentPartName, "Project", "Stock Number") = "" Then
+		ERRORS = ERRORS & "There is a value in the 'Stock Number' field of: '" & iProperties.Value(SentPartName, "Project", "Stock Number") & "'  which must be removed. We only use 'Part Number'!       "
+	End If
+	
+	'compare iam to ipt Part Number... should never match, may catch simple failure to check if Inventor overwrote the Part Number on save 
+	If iProperties.Value("Project", "Part Number") = iProperties.Value(SentPartName, "Project", "Part Number") Then
+		If Not iProperties.Value("Project", "Part Number") = "COUNTERWEIGHT" Then
+			ERRORS = ERRORS & "The iam and ipt both have the same 'Part Number' of: '" & iProperties.Value(SentPartName, "Project", "Part Number") & "' which cannot be correct!    "
+		End If
+	End If
+Catch
+ERRORS = ERRORS & "\\n General Error In external WoodAsm rule, Running Stock Number & Part Number checks on: " & SentPartName
+End Try
+If ERRORS <> "" Then Throw New Exception("Aborted due to... " & ERRORS)
+
+
+''' *** only due in development, don't want to stop OE for these issues ***
+If ShowErrMsg Then
+	Try
+		'GH Added 1/9/13 to enforce consistent term without space to resolve PCM issues
+		EDGSEQ = iProperties.Value("Custom", "EDGSEQ")
+		ERP_OPERATION = iProperties.Value(SentPartName,"Custom", "ERP_OPERATION")
+		If EDGSEQ = "NO EDGE" Then
+			ERRORS = ERRORS & "Must change EDGSEQ term from 'NO EDGE' to 'NONE'! Auto fixed to 'NONE' but must check in rules too. Part Number: '" & iProperties.Value(SentPartName, "Project", "Part Number") & "   "
+			iProperties.Value(SentPartName,"Custom", "EDGSEQ") = "NONE"
+		End If
+		
+		If EDGSEQ = "NONE" And (ERP_OPERATION >= 500 And ERP_OPERATION <= 511) Then
+			ERRORS = ERRORS & "Must check ERP_OPERATION of '" & ERP_OPERATION & "' for part with EDGSEQ of 'NONE'!  Part Number: '" & iProperties.Value(SentPartName, "Project", "Part Number") & "   "
+		End If
+		
+		
+		'''Check if POCKET iProperty exists at ipt
+		'GH added next chunk of code because ipt had POCKET with bad values but no POCKET existed on iam. 7/25/13
+		'MessageBox.Show("Message Pre Test for missing POCKET, ErrNumber=" & Err.Number, "Title")
+		Try
+		
+			POCKET = iProperties.Value(SentPartName,"Custom", "POCKET")
+			
+			' exists if it continues... so check the value
+			'MessageBox.Show("Message For Existing POCKET: " & POCKET, "Title")
+			If Not (POCKET Like "[ABDE]" Or POCKET = "AE" Or POCKET = "NA" Or POCKET = "") Then
+				ERRORS = ERRORS & "POCKET term must be 'A', 'B', 'D', 'E', 'AE', or 'NA' or blank,  Not '" & POCKET & "'    Part Number: '" & iProperties.Value(SentPartName, "Project", "Part Number") & "  "
+			Else
+			'update the iam  with the ipt value
+			iProperties.Value("Custom", "POCKET") = POCKET
+			'could check that 'B' are going to ErpOp 460
+			End If
+		Catch
+			'iProperty doesn't exist, just skip checking the POCKET value... and clear the err
+			'MessageBox.Show("Message For Testing a missing POCKET, ErrNumber=" & Err.Number, "Title")
+		End Try
+		
+		'''Check if POCKET iProperty exists at iam
+		'MessageBox.Show("Message Pre Test for missing POCKET, ErrNumber=" & Err.Number, "Title")
+		Try
+			POCKET = iProperties.Value("Custom", "POCKET")
+			' exists if it continues... so check the value
+			'MessageBox.Show("Message For Existing POCKET: " & POCKET, "Title")
+			If Not (POCKET Like "[ABDE]" Or POCKET = "AE" Or POCKET = "NA" Or POCKET = "") Then
+				ERRORS = ERRORS & "POCKET term must be 'A', 'B', 'D', 'E', 'AE', or 'NA' or blank,  Not '" & POCKET & "'    Part Number: '" & iProperties.Value(SentPartName, "Project", "Part Number") & "  "
+			Else
+			'could check that 'B' are going to ErpOp 460
+			End If
+		Catch
+			'iProperty doesn't exist, just skip checking the POCKET value... and clear the err
+			'MessageBox.Show("Message For Testing a missing POCKET, ErrNumber=" & Err.Number, "Title")
+		End Try
+		
+	Catch
+		ERRORS = ERRORS & "\\n General Error In external WoodAsm rule, Running EnsureLod rule on: " & SentPartName
+		
+	End Try
+		'this will only run in Dev
+		If ERRORS <> "" Then Throw New Exception("Aborted due to... " & ERRORS)
+End If
+ ']
+ 
+ '''GH changed PREMILL to new validations and 'NOPREMIL' term on 11/4/14
+'['GH added 4/3/14 for automated way to create PREMILL iProperty in ipt and then iam, all based on specific details in ipt
+'''can be removed after all are populated...??
+'''See if its a *STR* part +others, with EDGSEQ, not like C...
+
+PartNum = iProperties.Value(SentPartName, "Project", "Part Number")
+'If PartNum Like "TSTR*" Then
+If PartNum Like "TSTR*" Or PartNum = "ENDPNL-CP" Or PartNum = "EDSK-PAN-CP" Or PartNum = "TDSK-PAN-CP" Or PartNum = "TC-PANEL-CP" Or PartNum = "TSCRN-CP" Or PartNum = "TSTVD-CP" Or PartNum = "S12-1104DPS-CP" Or PartNum = "S12-1104DEP-CP" Or PartNum = "S13-0500-DP-CP" Or PartNum = "TSTVDV-CP" Or PartNum = "TSTLSD-CP" Then
+	'''**Get all the values from ipt that might be needed
+	EDGSEQ = iProperties.Value(SentPartName, "Custom", "EDGSEQ")
+	Try
+		EDGTHK = iProperties.Value(SentPartName, "Custom", "EDGTHK")
+	Catch
+		'No EDGTHK on ipt, don't set an _errorState, clear the err, conditionally create the value in both ipt and iam
+		If Not EDGSEQ = "NONE" Then
+			iProperties.Value(SentPartName, "Custom", "EDGTHK") = "WoodAsm created missing EDGTHK iProperty"
+			iProperties.Value("Custom", "EDGTHK") = "WoodAsm created missing EDGTHK iProperty"
+			'MessageBox.Show("Message For Testing a missing EDGTHK, need to create, ErrNumber= " & Err.Number & " Desc= " & Err.Description, "Title")
+			If ShowErrMsg Then MessageBox.Show("EDGTHK iProperty will be added to ipt, please confirm value." , "WoodAsm rule is going to add missing iProperty")
+		Else
+			'don't need EDGTHK iProperty, but set EDGTHK variable here in rule to 
+			EDGTHK = "NONE-NoIproperty"
+		End If
+	End Try
+	'Try to get somewhat new PREMILL, may not be getting added to all the specific PartNum, (external WoodPart calls classRload and it adds PREMILL)
+	Try
+		PREMILL = iProperties.Value(SentPartName, "Custom", "PREMILL")
+	Catch
+		'No PREMILL on ipt, don't set an _errorState, clear the err, create the value in both ipt and iam
+		iProperties.Value(SentPartName, "Custom", "PREMILL") = "WoodAsm created missing PREMILL iProperty"
+		iProperties.Value("Custom", "PREMILL") = "WoodAsm created missing PREMILL iProperty"
+		PREMILL = iProperties.Value(SentPartName, "Custom", "PREMILL")
+		'MessageBox.Show("Message For Testing a missing PREMILL, need to create, ErrNumber= " & Err.Number & " Desc= " & Err.Description, "Title")
+		If ShowErrMsg Then MessageBox.Show("PREMILL iProperty will be added to ipt, please confirm value." , "WoodAsm rule is going to add missing iProperty")
+	End Try
+	
+	'MessageBox.Show("EDGSEQ: " & EDGSEQ & "  EDGTHK: " & EDGTHK & "  PREMILL: " & PREMILL  , "Test values after get all iProperties")
+	'''**Now use the values from ipt do validations
+	EDGTHK = CStr(EDGTHK)
+	If EDGSEQ = "NONE" Or EDGSEQ = "C" Then
+		If EDGTHK Like "NONE*" Or EDGTHK Like "0" Then
+			NewPremillValue = "NOPREMIL"
+		ElseIf (EDGTHK = "0.018" Or EDGTHK Like "*.018*") Then'''in case we model .018 edge tape
+			NewPremillValue = "NOPREMIL"
+		ElseIf (EDGTHK = "0.059" Or EDGTHK Like "0.0[34]*") Then
+			NewPremillValue = "NOPREMIL"
+		Else
+			NewPremillValue = "Bad-UnexpectedSituation"
+		End If
+	Else'should be some combination of 1A,1B,2A,2B,
+		If (EDGTHK = "0.059" Or EDGTHK Like "0.0[34]*") Then
+			NewPremillValue = EDGTHK
+		ElseIf (EDGTHK = "0.018" Or EDGTHK Like "*.018*") Then'''in case we model .018 edge tape
+			NewPremillValue = "NOPREMIL"
+		Else
+			NewPremillValue = "Bad-UnexpectedSituation2"
+		End If
+	End If
+	If iProperties.Value(SentPartName, "Custom", "PREMILL") <> NewPremillValue Then
+		'test msg
+		If ShowErrMsg Then MessageBox.Show("PREMILL will be updated from Original: " & PREMILL & " to NewPremillValue: " & NewPremillValue , "WoodAsm rule is going to do an update")
+		iProperties.Value(SentPartName, "Custom", "PREMILL") = NewPremillValue
+		iProperties.Value("Custom", "PREMILL") = NewPremillValue
+	End If
+	
+	'added 2/26/15 Try to get PREMILL from iam running the rule, if it doesn't exist, create it with value from ipt
+	Try
+		IamPREMILLValue = iProperties.Value("Custom", "PREMILL")
+	Catch
+		'No PREMILL on iam, don't set an _errorState, check the value in ipt if not Bad, create and add it to iam
+		Try
+			IptPREMILLValue = iProperties.Value(SentPartName, "Custom", "PREMILL")
+		Catch
+			If ShowErrMsg Then MessageBox.Show("PREMILL iProperty may not exist on both iam and ipt, please confirm value." , "WoodAsm rule safety catch code")
+			'could add code to create/check here
+		End Try
+		'create the iam iProperty with the ipt value, no matter what value it has...
+		iProperties.Value("Custom", "PREMILL") = iProperties.Value(SentPartName, "Custom", "PREMILL")
+		If Not (IptPREMILLValue like "Bad*" Or IptPREMILLValue like "Check*") Then
+			'its probably a good value don't show msg
+		Else
+			If ShowErrMsg Then MessageBox.Show("PREMILL iProperty will be added to iam based on ipt value, please confirm value." , "WoodAsm rule is going to add missing iProperty")
+		End If
+	End Try
+	
+	
+	'''remain of old scheme below...
+	
+'	If Not (EDGSEQ = "NO EDGE" Or EDGSEQ = "NONE" Or EDGSEQ = "C") Then
+'		'Want add PREMILL, get EDGTHK Value
+'		EDGTHK = iProperties.Value(SentPartName, "Custom", "EDGTHK")
+'		If EDGTHK = "0.059" Or EDGTHK Like "0.0[34]0" Then
+'			'Check if PREMILL iProperty exists at ipt
+'			Try
+'				PREMILL = iProperties.Value(SentPartName, "Custom", "PREMILL")
+'				'has PREMILL on ipt so check the value and add it to iam if needed
+'				'MessageBox.Show("Message For Existing PREMILL: " & PREMILL, "Title")
+'				If Not (PREMILL = "0.059" Or PREMILL Like "0.0[34]0") Then
+'					ERRORS = ERRORS & "PREMILL must be '0.059' or '0.030' or '0.040',  Not '" & PREMILL & "'    Part Number: '" & iProperties.Value(SentPartName, "Project", "Part Number") & "  "
+'				Else
+'					'Values OK so update the iam  with the ipt value
+'					Try
+'						PREMILL = iProperties.Value("Custom", "PREMILL")
+'						'has PREMILL on both iam and ipt so should be OK
+'						'temp convert value to text
+'						If IsNumeric(PREMILL) Then
+'							iProperties.Value("Custom", "PREMILL") = CStr(EDGTHK)
+'						End If
+'					Catch
+'						'No PREMILL on iam, don't set an _errorState, clear the err, create the value in only iam
+'						iProperties.Value("Custom", "PREMILL") = CStr(EDGTHK)
+'						'MessageBox.Show("Message For Testing a missing PREMILL, need to create, ErrNumber=" & Err.Number, "Title")
+'					End Try
+'				End If
+'			Catch
+'				'No PREMILL on ipt, don't set an _errorState, clear the err, create the value in both ipt and iam
+'				iProperties.Value(SentPartName, "Custom", "PREMILL") = CStr(EDGTHK)
+'				iProperties.Value("Custom", "PREMILL") = CStr(EDGTHK)
+'				'MessageBox.Show("Message For Testing a missing PREMILL, need to create, ErrNumber=" & Err.Number, "Title")
+'			End Try
+'			If ERRORS <> "" Then Throw New Exception("Aborted due to... " & ERRORS)
+'		End If'Check EDGTHK
+'	End If'Check EDGSEQ
+End If'PartNum Like TSTR*....
+  ']
+  
+iProperties.Value("Custom", "ERRORS") = ERRORS
+
+'['Send any caught exceptions to ERRORS and log and Development user
+Catch ex As Exception
+	ExFull = ("Fatal error in model … " & ThisDoc.PathAndFileName(False) & "\n  Msg: " & ex.Message & "\n   More Info: " & ex.ToString)
+	ExBrief = ("Fatal error in model …" & ThisDoc.FileName(True) & "\n  Msg: " & ex.Message)
+	ERRORS = ERRORS & Left(ExBrief,255)
+	iProperties.Value("Custom", "ERRORS") = ERRORS
+	Dbg.Log("Aborted Top Level Assembly, due to... " & ERRORS)
+End Try
+If ShowErrWarnMsg Then If ERRORS <> "" Then MessageBox.Show(ERRORS, "ERRORS from: "& ThisDoc.FileName(True))
+']
+

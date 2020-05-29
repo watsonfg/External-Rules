@@ -1,0 +1,153 @@
+﻿'''Creator: 		Kasey Byquist
+'''Creation Date:	06.19.2019
+'''Revision:		0
+'''Revision Date:	
+'''Inputs:			Case Finish (CASFIN)
+'''Outputs:			Hardware Finish (HDWFIN) and Errors (ERRORS)
+'''Description:		This function is indended for use with the Bahn Waste Cabinet (BSW). Its purpose is to drive the
+'''					correct color attachment screws for the tall back panel.  If the supplied finish has not yet been entered,
+'''					the rule will output an error into the BSW.iam Process rule.  In this case, a HDWFIN of 'SILVER'
+'''					corresponds to PN 000XXXX and a HDWFIN of 'BK' corresponds to a PN 0000864.
+
+
+
+FileName = ThisDoc.FileName(True)								'with extension
+
+Dim ERRORS As String = ""										'Initialize ERRORS Text
+Dim HDWFIN As String = ""										'Initialize HDWFIN Text
+Dim FACFIN As String = iProperties.Value("Custom", "CASFIN")	'Pull in Case Finish from BSW.iam model
+
+Select Case FACFIN
+
+Case "A1"					'Asian Night Smartgrain
+	HDWFIN = "BK"
+Case "A2"					'Asian Sand Smartgrain
+	HDWFIN = "SILVER"
+Case "AB"					'Alabaster White
+	HDWFIN = "SILVER"
+Case "B8"					'Blond Echo Smartgrain
+	HDWFIN = "SILVER"
+Case "BK"					'Black
+	HDWFIN = "BK"
+Case "BKR"					'Saddle (Kraft Surface)
+	HDWFIN = "BK"
+Case "CH"					'Charcoal
+	HDWFIN = "BK"
+Case "CJO"					'Carajillo
+	HDWFIN = "BK"
+Case "DA"					'Madagascar Smartgrain
+	HDWFIN = "BK"
+Case "DT"					'Studio Teak
+	HDWFIN = "BK"
+Case "DZ"					'Desert Zephyr
+	HDWFIN = "SILVER"
+Case "EB"					'Ebony
+	HDWFIN = "BK"
+Case "EE"					'Sheer Mesh
+	HDWFIN = "SILVER"
+Case "EG"					'Grey Mesh
+	HDWFIN = "SILVER"
+Case "EH"					'Blond Echo
+	HDWFIN = "SILVER"
+Case "EK"					'Steel Mesh
+	HDWFIN = "BK"
+Case "ESP"					'Espresso (Kraft Surface)
+	HDWFIN = "BK"
+Case "EZ"					'Misted Zephyr
+	HDWFIN = "BK"
+Case "FCZ"					'Fawn Cypress
+	HDWFIN = "SILVER"
+Case "FLM"					'Field Elm
+	HDWFIN = "SILVER"
+Case "FIJ"					'Fiji
+	HDWFIN = "BK"
+Case "FE"					'Fine Sycamore
+	HDWFIN = "SILVER"
+Case "FJ"					'Frosty White
+	HDWFIN = "SILVER"
+Case "FQ"					'Fashion Grey
+	HDWFIN = "SILVER"
+Case "GY"					'Satin Grey
+	HDWFIN = "BK"
+Case "HIR"					'High Rise
+	HDWFIN = "SILVER"
+Case "IB"					'Biltmore Cherry
+	HDWFIN = "BK"
+Case "INF"					'Infinity
+	HDWFIN = "BK"
+Case "IZ"					'Twilight Zephyr
+	HDWFIN = "BK"
+Case "J9"					'Walnut Heights
+	HDWFIN = "BK"
+Case "JN"					'Asian Night
+	HDWFIN = "BK"
+Case "JS"					'Asian Sand
+	HDWFIN = "SILVER"
+Case "KM"					'Kensington Maple
+	HDWFIN = "SILVER"
+Case "KN"					'Kona
+	HDWFIN = "BK"
+Case "LB"					'Lapis Blue
+	HDWFIN = "BK"
+Case "LIB"					'Liberty Red
+	HDWFIN = "BK"
+Case "M2"					'Dark Champagne
+	HDWFIN = "BK"
+Case "MBK"					'Nero Ingo (Fenix Black)
+	HDWFIN = "BK"
+Case "MBR"					'Castoro Ottawa (Fenix Brown)
+	HDWFIN = "BK"
+Case "MWH"					'Bianco Kos (Fenix White)
+	HDWFIN = "SILVER"
+Case "N2"					'Natural Cane
+	HDWFIN = "SILVER"
+Case "PAP"					'Fresh Papaya
+	HDWFIN = "BK"
+Case "PLS"					'Licorice Stick
+	HDWFIN = "SILVER"
+Case "PRI"					'Primary Yellow
+	HDWFIN = "SILVER"
+Case "RV"					'River Cherry
+	HDWFIN = "BK"
+Case "SG"					'Slate
+	HDWFIN = "BK"
+Case "TH"					'Tan Echo
+	HDWFIN = "SILVER"
+Case "TU"					'Tendu
+	HDWFIN = "BK"
+Case "TBD"					'TBD FOR TESTING
+	HDWFIN = "BK"
+Case "TW"					'Tuscan Walnut
+	HDWFIN = "BK"
+Case "TX"					'Studio Teak Smartgrain
+	HDWFIN = "BK"
+Case "USA"					'Surfin USA
+	HDWFIN = "BK"
+Case "V1"					'Vibrant Green
+	HDWFIN = "BK"
+Case "WA"					'SILVER (White Aluminum)
+	HDWFIN = "SILVER"
+Case "WCS"					'White Cyprus
+	HDWFIN = "SILVER"
+Case "WM"					'White Markerboard
+	HDWFIN = "SILVER"
+Case "WTH"					'Walnut Heights
+	HDWFIN = "BK"
+Case "ZA"					'Shadow Zephyr
+	HDWFIN = "SILVER"
+Case "ZD"					'Madagascar
+	HDWFIN = "BK"
+Case "PEC"					'Phantom Ecru
+	HDWFIN = "SILVER"
+Case "SWN"					'SKYLINE WALNUT
+	HDWFIN = "SILVER"
+Case "PPE"
+	HDWFIN = "SILVER"
+Case "UZWR"					'Weathered Ash
+	HDWFIN = "BK"
+Case Else
+	ERRORS = ERRORS & "ERROR IN BSW-HDWFIN-CALCULATOR RULE. SELECTED FACFIN IS NOT IN THE MATRIX. PLEASE LOAD FACFIN AND PUBLISH RULE. " & FileName & " /n"
+End Select
+
+iProperties.Value("Custom", "ERRORS") = iProperties.Value("Custom", "ERRORS") & ERRORS
+iProperties.Value("Custom", "HDWFIN") = HDWFIN

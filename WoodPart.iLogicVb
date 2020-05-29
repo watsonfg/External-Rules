@@ -1,0 +1,82 @@
+﻿' <FireOthersImmediately>False</FireOthersImmediately>
+'Note: when run solo as external rule rather than called from a part, this error is typical...
+'	"Object reference not set to an instance of an object."
+
+'['Declare External Routine(s)
+AddVbFile "classRLOAD.vb" 							'Defines external rule
+Dim rLoad As New RLOAD(ThisDoc.Document)
+Dim PropertyCheck As New RLOAD(ThisDoc.Document)
+']
+
+'['Get driving models preference for showing "OK" testing messages via SharedVariable
+If Not SharedVariable.Exists("ShowOkMsgWoodPart") Then 'force false as default
+	ShowOkMsgWoodPart = False
+Else'set to user preference
+	ShowOkMsgWoodPart = SharedVariable("ShowOkMsgWoodPart")
+	'MessageBox.Show("ShowOkMsgWoodPart value: " & ShowOkMsgWoodPart, "ShowOkMsgWoodPart value")
+End If
+']
+
+'['Toggles to control message boxes, and get FileName
+'Toggles all Error message boxes in parts running this rule.
+'Uses Environment Variable from Computer running Inventor
+'Set to "true" for development PC and "false" for Server running Frontier cadflow.
+'(Ensures Auto Off when model Is published)
+Dim ErrMsg As String = Environ("ILOGIC_ErrMsg")
+If ErrMsg = "true" Then 
+ShowErrMsg = True
+Else		'If the PC is missing the Enviornment Variable then ShowErrWarnMsg will be set to false 
+ShowErrMsg = False
+	If ShowOkMsgWoodPart = True Then
+		ShowOkMsgWoodPart = False	'Safety rule, override true back to false in case on server
+	End If
+End If
+PartName = ThisDoc.FileName(True) 'with extension
+']
+
+'['Check if exist and create if not
+'Hopefully a short term routine to add missing iProperties if needed
+Call PropertyCheck.CheckErr()
+Call PropertyCheck.CheckWarn()
+Call PropertyCheck.CheckRload()
+Call PropertyCheck.CheckSqFt()
+Call PropertyCheck.CheckEdgSeq()
+Call PropertyCheck.CheckEdgLft()
+'Call PropertyCheck.CheckPremill()'GH added 11/4/14
+'MessageBox.Show(PartName & " :  ERRORS: " & iProperties.Value("Custom", "ERRORS"), "test ERRORS")
+']
+
+'['clear old iProperty values (Could send existing model errors & warnings as arguments if needed)
+iProperties.Value("Custom", "ERRORS") = ""
+iProperties.Value("Custom", "WARNINGS") = ""
+']
+
+'['Conditionally Show errors, (only pre "Calculate" errors)
+If ShowErrMsg Then 
+	If PropertyCheck.IsInErrorState Then
+		MessageBox.Show(PartName & " :  IsInErrorState:   " & PropertyCheck.IsInErrorState, "RLOAD")
+		MessageBox.Show("iWARNING: " & PropertyCheck.iWARNING.Value, "iWARNING")
+		MessageBox.Show(PropertyCheck.CountOfHoles, "CountOfHoles")
+		'rLoad.ShowRLOADFace()	
+	End If
+End If
+']
+
+'['Run Calculate on the RLOAD rule.
+Call rLoad.Calculate()
+
+'Show conditional OK values, typically for testing only
+If ShowOkMsgWoodPart Then MessageBox.Show(PartName & " :  RLOAD value: " & iProperties.Value("Custom", "RLOAD"), "ShowOkMsgWoodPart from external rule")
+
+'Show conditional Error values
+If ShowErrMsg Then If iProperties.Value("Custom", "ERRORS") <> "" Then MessageBox.Show(PartName & " :  ERRORS: " & iProperties.Value("Custom", "ERRORS"), "ERRORS")
+If ShowErrMsg Then If iProperties.Value("Custom", "WARNINGS") <> "" Then MessageBox.Show(PartName & " :  WARNINGS: " & iProperties.Value("Custom", "WARNINGS"), "WARNINGS")
+']
+
+'['Force error and warning values for test append in model
+'Uncomment 3 lines below to create fake values for testing
+
+'PartNameNoExt = ThisDoc.FileName(False) 'with extension
+'iProperties.Value("Custom", "ERRORS") = "FakeWoodPartErr" & PartNameNoExt & " "
+'iProperties.Value("Custom", "WARNINGS") = "FakeWoodPartWarn" & PartNameNoExt & " "
+']

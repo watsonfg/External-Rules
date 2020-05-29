@@ -1,0 +1,28 @@
+﻿FileName = ThisDoc.FileName(True)		 'with extension
+
+'Determine iProp used for EDGE TYPE
+Try
+	EDGTYP = iProperties.Value("Custom", "EDGTYP")
+Catch
+	EDGTYP = iProperties.Value("Custom", "EDGPRF")
+End Try
+
+'Create the return value here...
+Select Case EDGTYP
+	Case "AR", "AW", "AY", "BF", "BH", "DB", "DC", "DD", "DR", "DT", "WE", "WR", "WS"			'"HG" moved to 411 (DGS 8/2/16)
+		DynErpOp = 710
+	Case "PE", "PR", "PS", "F", "M", "N", "S", "T", "U", "K", "HG", "V", "W", "CU", "CV"		'"HG" added from 710 (DGS 8/2/16) | "V" and "W" added 9/2/16 GJD  'EC1396 added CU and CV edges
+		DynErpOp = 411
+	Case "B", "X"
+		DynErpOp = 700
+	Case "Q", "Z", "C", "J", "HG", "P", "H", "CQ"												'EC893 added H edge (Knife Trim with Square Corners)  'EC1396 added CQ edge
+		DynErpOp = 510
+	Case Else
+		ERRORS = ERRORS & "Error, Passed EDGTYP of: '" & EDGTYP & "' is NOT a Valid Edge Type. (I: GetCuttopErpByEdge - " & FileName & ")\n"
+End Select
+
+iProperties.Value("Custom", "ERRORS") = ERRORS & iProperties.Value("Custom", "ERRORS")
+
+Parameter("DynErpOp") = DynErpOp
+
+

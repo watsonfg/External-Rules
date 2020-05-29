@@ -1,0 +1,230 @@
+﻿Sub Main ()
+TextFileReview = "c:\temp\ReviewFile.txt" 'This text file records if the rule completes and is used as the final file shown
+TextFileChecks = "c:\temp\ReviewChecks.txt"	'This text file stores all checks made
+TextFileIssues = "c:\temp\ReviewIssues.txt"	'This is the text file that records all issues found by the review rules
+	
+Try
+	'['Windows File Name 
+	Dim FileName As String = ThisDoc.FileName(False)         '(True/False) means with/without file extension. This document uses mostly false for logic purposes
+	Dim FileNameLong As String = ThisDoc.FileName(True)
+	']
+	
+	'['Check for Drawing File
+	oPath = ThisDoc.ChangeExtension(".idw")
+	If Not (System.IO.File.Exists(oPath)) Then
+		WriteText(TextFileIssues,"This file does not have a drawing with a matching name.")
+		WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+	End If
+	
+	WriteText(TextFileChecks, "SteelCutPart - Drawing - Is Present", 1)
+	']
+	
+	'['Check for common ERP Operation
+	Try
+		ERP_Operation = iProperties.Value("Custom", "ERP_OPERATION")
+		Select Case ERP_OPERATION
+			Case 340
+				'pem
+			Case 360
+				'mig weld
+			Case 370
+				'tig weld
+			Case 390
+				'powder
+			Case 630
+				'lockbars etc
+			Case 80
+				'hardware
+			Case Else
+				WriteText(TextFileIssues,"ERP_OPERATION is " & ERP_OPERATION & ".  Please verify that this is correct.")
+				WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+		End Select
+	Catch
+		WriteText(TextFileIssues,"Unable to pull ERP_OPERATION.  Please check model.")
+		WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+	End Try
+	
+	WriteText(TextFileChecks, "SteelCutPart - ERP_OPERATION - Is common for steel cutparts", 1)
+	
+	
+	If ERP_Operation = "630" Or ERP = "950" Or ERP = "80" Then
+		Try
+			TestExistence = iProperties.Value("Custom", "NETDEPTH")
+			TestExistence2 = iProperties.Value("Custom", "NETHEIGHT")
+			TestExistence3 = iProperties.Value("Custom", "NETWIDTH")
+		Catch
+			WriteText(TextFileIssues, "This file does not have NETs but they are used by the floor at this ERP.")
+			WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+		End Try
+	Else
+		Try
+			TestExistence = iProperties.Value("Custom", "NETDEPTH")
+			TestExistence2 = iProperties.Value("Custom", "NETHEIGHT")
+			TestExistence3 = iProperties.Value("Custom", "NETWIDTH")
+			WriteText(TextFileIssues, "This file has NETs but they are NOT used by the floor at this ERP.")
+			WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+		Catch
+			'Good
+		End Try
+	End If
+	WriteText(TextFileChecks, "SteelCutPart - NETs - If they should be present", 1)
+	']
+	
+	'['MATTYP Validation
+	Try
+		MATTYP = iProperties.Value("Custom", "MATTYP")
+		Select Case MATTYP
+			Case "10GACRS"
+			Case "11GACRS"
+			Case "12GACRS"
+			Case "14GACRS"
+			Case "16GACRS"
+			Case "18GACRS"
+			Case "20GACRS"
+			Case "22GACRS"
+			Case "8GAAL"
+			Case "16GAAL"
+			Case "188A36PO"
+			Case "20PERF"
+			Case "250A36PO"
+			Case "500A36PO"
+			Case Else
+				WriteText(TextFileIssues,"No MATTYP set, or MATTYP is not a valid value." & vbCrLf)
+				WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+		End Select
+	Catch
+		WriteText(TextFileIssues,"No MATTYP iProperty found.")
+		WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+	End Try		
+	
+	WriteText(TextFileChecks, "SteelCutPart - MATTYP - Is valid for sheetmetal", 1)
+	']
+	
+	'['DIMA & DIMB validation
+	Try
+		DIMA = iProperties.Value("Custom", "DIMA")
+		If Not DIMA > 0 Then
+			WriteText(TextFileIssues,"DIMA less than zero. Please correct.")
+			WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+		End If
+	Catch
+		WriteText(TextFileIssues,"No DIMA iProperty was found.  DIMA and DIMB are the only lot defining dimensions.  Please verify you have enough lot information.")
+		WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+	End Try
+	
+	Try
+		DIMB = iProperties.Value("Custom", "DIMB")
+		If Not DIMB > 0 Then
+			WriteText(TextFileIssues,"DIMB less than zero. Please correct." )
+			WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+		End If
+	Catch
+		WriteText(TextFileIssues,"No DIMB iProperty was found.  DIMA and DIMB are the only lot defining dimensions.  Please verify you have enough lot information.")
+		WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+	End Try
+	
+	WriteText(TextFileChecks, "SteelCutPart - DIMA/DIMB - Are greater than zero", 1)
+	']
+	
+	'['Lot Defining Info
+	OPTAllowed = New String(){"SMOPT1","SMOPT2","SMOPT3"}
+	OPT_Check(OPTAllowed, TextFileIssues, TextFileChecks)
+	WriteText(TextFileChecks, "SteelCutPart - OPTS - iProps with OPT in the name are lot defining", 1)
+	']
+	
+	'['Check sqFt
+	Try
+		SQFT = iProperties.Value("Custom", "SQFT")
+		If Not sqFt > 0 Then
+			WriteText(TextFileIssues,"SQFT is negative. Please correct.")
+			WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+		End If
+	Catch
+		WriteText(TextFileIssues,"Unable to test SQFT. Please check value.")
+		WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+	End Try
+	
+	WriteText(TextFileChecks, "SteelCutPart - SQFT - Is a positive value", 1)
+	']
+	
+	'['Bendcount Advisory
+	Try
+		BENDCOUNT = iProperties.Value("Custom", "BENDCOUNT")
+		If BENDCOUNT > 1 Then
+			WriteText(TextFileIssues,"There is more than one bend detected. Please verify that the bend count iProperty (" & BENDCOUNT & ") and the actual amount of bends required match.  (IE bends in parrallel that require one strike on the break press.)")
+		End If
+	Catch
+		WriteText(TextFileIssues,"Unable to pull BENDCOUNT.  Please verify that the process rule of your model has run at least once.")
+		WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+	End Try
+	
+	WriteText(TextFileChecks, "SteelCutPart - BENDCOUNT - Is present", 1)
+	']
+
+	WriteText(TextFileReview, "The ReviewSteelCutpart rule has successfully finished running.")
+Catch
+	MessageBox.Show("The ReviewSteelCutpart has FAILED TO FINISH not all checks were performed", ThisDoc.FileName(True))
+	WriteText(TextFileReview, "The ReviewSteelCutpart has FAILED TO FINISH not all checks were performed")
+End Try
+End Sub
+
+Function OPT_Check(OPTAllowed, TextFileIssues, TextFileChecks)
+'Determine if all OPT are lot defining
+'Define custom property collection
+oCustomPropertySet = ThisDoc.Document.PropertySets.Item("Inventor User Defined Properties")
+'Look at each property in the collection
+For Each oCustProp In oCustomPropertySet
+CorrectOpt = False
+	'Check to see if the iProp is a OPT
+	If oCustProp.Name Like "*OPT*" Then
+		For i = 0 To OPTAllowed.Length - 1
+			If OPTAllowed(i) = oCustProp.Name Then
+				CorrectOpt = True
+			End If
+		Next
+		If CorrectOpt = False
+			IPropName = oCustProp.Name 'You can't pass a function into a function so I need to store the name in a variable first
+			WriteText(TextFileIssues, IPropName & " is not a lot defining option.")
+			WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+		End If
+	End If
+Next
+End Function
+
+Function WriteText(File, Text, Optional EndWithNewLines = 2)
+'''Creator: Chris Kuchman
+'''Date Made: 1/27/2016
+'''Date Updated: 2/6/2016 - CAK
+'''Description: This function is used to write text to a text file. The first arguement is the specific text file you
+'''are writing to and the second is the string you want to pass. If you want the string to be broken up into seperate
+'''lines then add a \n to the string line. By default the string will add 2 new lines between each new string added,
+'''but if you want to add less or more new lines then pass a third argument with the number of new lines generated.
+'''(0 will just append the line to the last line)
+
+'Sets a stream to pass the text into the notepad file (filestreams only do btyes so we need a stream writer to convert)
+Dim fs As New System.IO.FileStream(File, System.IO.FileMode.Append, System.IO.FileAccess.Write)
+Dim theLog As New System.IO.StreamWriter(fs)
+
+'Breaks the string up into new lines
+Dim StringArray() As String = Split(Text, "\n ")
+
+'For each split string, write to the file and add a new line (except for the very last line)
+For i As Integer = 0 To StringArray.Length - 1
+	If i < StringArray.Length - 1  Then
+		theLog.WriteLine(StringArray(i))
+	Else
+		theLog.Write(StringArray(i)) 'Write will not add a new line by default like WriteLine
+	End If
+Next
+
+Dim j As Integer = 0
+
+'Add the number of new lines passed into the optional parameter, will loop once if the default value is used
+While EndWithNewLines > j
+	theLog.WriteLine()
+	j += 1
+End While
+​
+'Closes the stream
+theLog.Close()
+End Function

@@ -1,0 +1,24 @@
+﻿FileName = ThisDoc.FileName(True)		 'with extension
+
+Dim CUTA As Double = iProperties.Value("Custom", "CUTA")
+Dim CUTB As Double = iProperties.Value("Custom", "CUTB")
+
+Dim CutDimensions As New ArrayList
+
+CutDimensions.Add(CUTA)
+CutDimensions.Add(CUTB)
+
+CutDimensions.Sort()
+
+CUTA = CutDimensions(0)
+CUTB = CutDimensions(1)
+
+If CUTA > 48 Then
+	ERRORS = ERRORS & "At " & CUTA & " inches, the part is too large to manufacuture (I:" & FileName & ")\n"
+End If
+
+If CUTB > 96 Then
+	ERRORS = ERRORS & "At " & CUTB & " inches, the part is too large to manufacuture (I:" & FileName & ")\n"
+End If
+
+iProperties.Value("Custom", "ERRORS") = ERRORS

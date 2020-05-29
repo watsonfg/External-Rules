@@ -1,0 +1,25 @@
+﻿' <FireOthersImmediately>False</FireOthersImmediately>
+Dim HasTaps As Boolean
+Dim HasCountersunk As Boolean
+Dim oDoc As PartDocument
+oDoc = ThisDoc.Document
+    Dim Holes As HoleFeatures
+    Holes = oDoc.ComponentDefinition.Features.HoleFeatures
+    HasTaps = False
+    If Not (HasTaps = True) Then
+        For Each Hole In Holes
+			'''Second statement added to avoid counting suppressed tapped holes - CAK 7/1/15
+            
+			If Hole.Tapped And Hole.Suppressed = False Then
+                HasTaps = True
+            End If
+			'hole.holetype can have 4 answers: 21507 hole is counter bored, 21506 hole is countersunk, 21505 hole is drilled (not either of previous 2), 21508 hole is spotfaced
+			If Hole.HoleType() = 21506 And Hole.Suppressed = False Then
+                HasCountersunk = True
+            End If
+			
+        Next
+    End If
+
+iProperties.Value("Custom", "TAPPED") = HasTaps
+iProperties.Value("Custom", "COUNTERSUNK") = HasCountersunk

@@ -1,0 +1,50 @@
+﻿' <FireOthersImmediately>False</FireOthersImmediately>
+'['Code to set sketch visibility, original from Mike Deck
+Sub Main
+
+'Plan to get the desired True/False value from iProperty, can't get 2 values from args		
+SketchVisible = iProperties.Value("Custom", "MySketchVisible")
+'MessageBox.Show("MySketchVisible: " & SketchVisible, "TestMsg")	
+
+'['Verify incoming arguments then run code
+app = ThisApplication
+If (Not RuleArguments.Exists("SendSketchNameToSetVisibility")) Then
+	'MessageBox.Show("No Incoming Argument", "Title for Error")
+	Throw New ArgumentException("No Incoming Argument was found.")
+Else
+	SentSketchNameToSetVisibility = RuleArguments("SendSketchNameToSetVisibility")
+	'MessageBox.Show("SketchName = " & SentSketchNameToSetVisibility & "  Setting to: " & SketchVisible, "TestMsg")
+
+End If
+	On Error Resume Next
+
+  FindSketch(ThisDoc.Document, SentSketchNameToSetVisibility).Visible = SketchVisible
+End Sub
+
+Public Function FindSketch(doc As Document, ByVal sketchName As String) As Inventor.PlanarSketch
+    Dim sketches As Inventor.PlanarSketches = Nothing
+    Dim oPartDoc As Inventor.PartDocument
+    Dim oAssemDoc As Inventor.AssemblyDocument
+    If (doc.DocumentType = Inventor.DocumentTypeEnum.kPartDocumentObject) Then
+           oPartDoc = doc
+           sketches = oPartDoc.ComponentDefinition.Sketches
+    ElseIf (doc.DocumentType = Inventor.DocumentTypeEnum.kAssemblyDocumentObject) Then
+           oAssemDoc = doc
+           sketches = oAssemDoc.ComponentDefinition.Sketches
+    End If
+    If (sketches Is Nothing) Then Return Nothing
+
+    For Each sketchX As Inventor.PlanarSketch In sketches
+                If (String.Compare(sketchX.Name, sketchName, True) = 0) Then
+                    Return sketchX
+           End If
+    Next
+
+    Throw New ArgumentException("No sketch named " & sketchName & " was found.")
+	
+On Error Goto 0
+		If _errorState = True Then
+			Throw New ArgumentException("Error In external 'SketchSetVisible' rule:" & _strErrorValue)
+		End If	
+End Function
+ ']

@@ -1,0 +1,17 @@
+﻿'ExampleExternalFunctionsGh.iLogicVb is the name of the External rule file
+AddVbFile "ExampleExternalFunctionsGh.iLogicVb"
+
+'TheCallToExternalRule is just an instance of using the external rule
+'TestFunctions is the name of Class in External File
+Dim TheCallToExternalRule As New TestFunctions(Parameter)
+MyResult = ""
+
+
+'GetParameterValue is the name of function
+TheCallToExternalRule.GetParameterValue(MyResult)
+MsgBox(MyResult)
+
+
+'GetPlainValue is the name of function
+TheCallToExternalRule.GetPlainValue(MyResult)
+MsgBox(MyResult)

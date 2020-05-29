@@ -1,0 +1,41 @@
+﻿Sub Main()
+
+'['Windows File Name With Extension
+FileName = ThisDoc.FileName(True)		 'with extension
+']
+
+'['Parameters in active document
+MyParameters = ThisApplication.ActiveDocument.ComponentDefinition.Parameters.UserParameters
+']
+
+'['Determine iProp used for MATTYP
+Try
+	Matfin = iProperties.Value("Custom", "MATFIN")
+
+Catch
+	ERRORS = ERRORS & "Error with MATTYP iProperty " & FileName & ")\n"
+End Try
+']
+
+Try
+	'['Determine boolean if MATTYP is TFL
+	Select Case Matfin
+		Case "FJ", "AB", "FQ", "GY", "SG", "CH", "BK", "FLM", "PEC", "EH", "FCZ", "DT", "WTH"
+			IsMatfinTFL = True
+		Case Else
+			IsMatfinTFL = False
+	End Select
+	']
+	
+	'['Assign parameter to boolean if MATTYP is TFL
+	Try 
+		MyParameters.Item("IsMatfinTFL").Value = IsMatfinTFL
+	Catch
+		MyParameters.AddByValue("IsMatfinTFL", IsMatfinTFL, "BOOLEAN")
+	End Try
+	']
+Catch
+	ERRORS = ERRORS & "EXCEPTION thrown in GetIsMatfinTFL (I: GetMattypByEdge - " & FileName & ")\n"
+End Try
+
+End Sub

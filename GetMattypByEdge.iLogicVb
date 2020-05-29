@@ -1,0 +1,48 @@
+﻿'['Windows File Name With Extension
+FileName = ThisDoc.FileName(True)		 'with extension
+']
+
+'['Determine iProp used for EDGE TYPE
+Try
+	EDGTYP = iProperties.Value("Custom", "EDGTYP")
+Catch
+	EDGTYP = iProperties.Value("Custom", "EDGPRF")
+End Try
+']
+
+TopThickness = Parameter("TopThickness")
+Reversible = Parameter("Reversible")
+
+TFLcolor = ""
+
+'['Determine MATTYP
+Try
+	Select Case EDGTYP
+		Case "K", "U", "J", "S", "N", "H", "CU"		'EC893 added H edge (Knife Trim with Square Corners)  'EC1396 added CU edge
+			MaterialBoardType= "MP"
+		Case "Q", "Z", "X", "B", "C", "CQ"			'EC1396 added CQ edge
+			MaterialBoardType = "P"
+		Case "V", "W", "CV"							'"V" and "W" added 9/2/16 GJD  'EC1396 added CV edge
+			MaterialBoardType = "EB"
+		Case "P"
+			MaterialBoardType = "MDF"		
+			TFLcolor = ""	
+		Case Else
+			ERRORS = ERRORS & " " & EDGTYP & " is NOT a Valid Edge Type (I:" & FileName & ")\n"
+	End Select
+	'Determine the number of sides to apply laminate (not backer)
+	If Reversible Then
+		MaterialTypeSides = "2"
+	Else
+		MaterialTypeSides = "1"
+	End If	
+	'Create MATTYP string from board type and laminate sides
+	MATTYP = TopThickness & MaterialBoardType & MaterialTypeSides & TFLcolor
+Catch ex As Exception
+	ERRORS = ERRORS & "EXCEPTION thrown in GetMattypByEdge (I: GetMattypByEdge - " & FileName & ")\n"
+End Try
+']
+
+'['Return MATTYP
+iProperties.Value("Custom", "MATTYP") = MATTYP
+']

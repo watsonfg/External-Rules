@@ -1,0 +1,169 @@
+﻿'''Creator: 		Douglas Wisser
+'''Creation Date:	06.20.2017
+'''Revision:		2
+'''Revision Date:	01.09.2019
+'''Inputs:			Face Finish (FACFIN)
+'''Outputs:			Hardware Finish (HDWFIN) and Errors (ERRORS)
+'''Description:		This function is indended for use with the Bahn Waste Cabinet (BSW). Its purpose is to drive the
+'''					correct color label for a given face finish.  If the supplied finish has not yet been entered,
+'''					the rule will output an error into the BSW.iam Process rule.  In this case, a HDWFIN of 'SILVER'
+'''					corresponds to a white label set and a HDWFIN of 'BK' corresponds to a charcoal label set.
+
+'''Revision 1: Added HDWFIN for Tan Echo (TH) as BK [DBW]
+''' Revision 2: added HDWFIN for Field Elm (FLM) as BK (LMP)
+
+
+FileName = ThisDoc.FileName(True)								'with extension
+
+Dim ERRORS As String = ""										'Initialize ERRORS Text
+Dim HDWFIN As String = ""										'Initialize HDWFIN Text
+Dim FACFIN As String = iProperties.Value("Custom", "FACFIN")	'Pull in Face Finish from BSW.iam model
+
+Select Case FACFIN
+
+Case "A1"					'Asian Night Smartgrain
+	HDWFIN = "SILVER"
+Case "A2"					'Asian Sand Smartgrain
+	HDWFIN = "BK"
+Case "AB"					'Alabaster White
+	HDWFIN = "BK"
+Case "B8"					'Blond Echo Smartgrain
+	HDWFIN = "BK"
+Case "BK"					'Black
+	HDWFIN = "SILVER"
+Case "BKR"					'Saddle (Kraft Surface)
+	HDWFIN = "SILVER"
+Case "CH"					'Charcoal
+	HDWFIN = "SILVER"
+Case "CJO"					'Carajillo
+	HDWFIN = "SILVER"
+Case "DA"					'Madagascar Smartgrain
+	HDWFIN = "SILVER"
+Case "DT"					'Studio Teak
+	HDWFIN = "SILVER"
+Case "DZ"					'Desert Zephyr
+	HDWFIN = "BK"
+Case "EB"					'Ebony
+	HDWFIN = "SILVER"
+Case "EE"					'Sheer Mesh
+	HDWFIN = "BK"
+Case "EG"					'Grey Mesh
+	HDWFIN = "BK"
+Case "EH"					'Blond Echo
+	HDWFIN = "BK"
+Case "EK"					'Steel Mesh
+	HDWFIN = "SILVER"
+Case "ESP"					'Espresso (Kraft Surface)
+	HDWFIN = "SILVER"
+Case "EZ"					'Misted Zephyr
+	HDWFIN = "SILVER"
+Case "FCZ"					'Fawn Cypress
+	HDWFIN = "BK"
+Case "FLM"					'Field Elm
+	HDWFIN = "BK"
+Case "FIJ"					'Fiji
+	HDWFIN = "Silver"
+Case "FE"					'Fine Sycamore
+	HDWFIN = "BK"
+Case "FJ"					'Frosty White
+	HDWFIN = "BK"
+Case "FQ"					'Fashion Grey
+	HDWFIN = "BK"
+Case "GY"					'Satin Grey
+	HDWFIN = "SILVER"
+Case "HIR"					'High Rise
+	HDWFIN = "BK"
+Case "IB"					'Biltmore Cherry
+	HDWFIN = "SILVER"
+Case "INF"					'Infinity
+	HDWFIN = "SILVER"
+Case "IZ"					'Twilight Zephyr
+	HDWFIN = "SILVER"
+Case "J9"					'Walnut Heights
+	HDWFIN = "SILVER"
+Case "JN"					'Asian Night
+	HDWFIN = "SILVER"
+Case "JS"					'Asian Sand
+	HDWFIN = "BK"
+Case "KM"					'Kensington Maple
+	HDWFIN = "BK"
+Case "KN"					'Kona
+	HDWFIN = "SILVER"
+Case "LB"					'Lapis Blue
+	HDWFIN = "SILVER"
+Case "LIB"					'Liberty Red
+	HDWFIN = "SILVER"
+Case "M2"					'Dark Champagne
+	HDWFIN = "SILVER"
+Case "MBK"					'Nero Ingo (Fenix Black)
+	HDWFIN = "SILVER"
+Case "MBR"					'Castoro Ottawa (Fenix Brown)
+	HDWFIN = "SILVER"
+Case "MWH"					'Bianco Kos (Fenix White)
+	HDWFIN = "BK"
+Case "N2"					'Natural Cane
+	HDWFIN = "BK"
+Case "PAP"					'Fresh Papaya
+	HDWFIN = "SILVER"
+Case "PLS"					'Licorice Stick
+	HDWFIN = "BK"
+Case "PRI"					'Primary Yellow
+	HDWFIN = "BK"
+Case "RV"					'River Cherry
+	HDWFIN = "SILVER"
+Case "SG"					'Slate
+	HDWFIN = "SILVER"
+Case "TH"					'Tan Echo
+	HDWFIN = "BK"
+Case "TU"					'Tendu
+	HDWFIN = "SILVER"
+Case "TBD"					'TBD FOR TESTING
+	HDWFIN = "SILVER"
+Case "TW"					'Tuscan Walnut
+	HDWFIN = "SILVER"
+Case "TX"					'Studio Teak Smartgrain
+	HDWFIN = "SILVER"
+Case "USA"					'Surfin USA
+	HDWFIN = "SILVER"
+Case "V1"					'Vibrant Green
+	HDWFIN = "SILVER"
+Case "WA"					'Silver (White Aluminum)
+	HDWFIN = "BK"
+Case "WCS"					'White Cyprus
+	HDWFIN = "BK"
+Case "WM"					'White Markerboard
+	HDWFIN = "BK"
+Case "WTH"					'Walnut Heights
+	HDWFIN = "SILVER"
+Case "ZA"					'Shadow Zephyr
+	HDWFIN = "BK"
+Case "ZD"					'Madagascar
+	HDWFIN = "SILVER"
+Case "PEC"					'Phantom Ecru
+	HDWFIN = "BK"
+Case "SWN"					'SKYLINE WALNUT
+	HDWFIN = "BK"
+Case "PPE"
+	HDWFIN = "BK"
+Case "UZWR"					'Weathered Ash
+	HDWFIN = "SILVER"
+Case "GEL"					'Grey Elm
+	HDWFIN = "SILVER"
+Case "VTK"					'Veranda Teak (8209-38)
+	HDWFIN = "SILVER"
+Case "KWW"					'Kingswood Walnut
+	HDWFIN = "SILVER"
+Case "BLL"					'Black Linearity
+	HDWFIN = "SILVER"
+Case "NWA"					'NEO WALNUT
+	HDWFIN = "SILVER"	
+Case "UWN" 					'Uptown Walnut
+	HDWFIN = "SILVER"
+Case "NTR"					'Natural Recon
+	HDWFIN = "SILVER"
+Case Else
+	ERRORS = ERRORS & "ERROR IN BSW-HDWFIN-CALCULATOR RULE. SELECTED FACFIN IS NOT IN THE MATRIX. PLEASE LOAD FACFIN AND PUBLISH RULE. " & FileName & " /n"
+End Select
+
+iProperties.Value("Custom", "ERRORS") = iProperties.Value("Custom", "ERRORS") & ERRORS
+iProperties.Value("Custom", "HDWFIN") = HDWFIN

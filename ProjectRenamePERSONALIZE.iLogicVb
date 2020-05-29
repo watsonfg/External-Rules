@@ -1,0 +1,64 @@
+﻿If iProperties.Value("Project", "Part Number") = ThisDoc.FileName(False) Then
+    'Okay
+Else    
+    MessageBox.Show("File Name and PartNumber Don't Match", "Title")
+End If
+
+RESPONSE = MessageBox.Show("Part Number: " & iProperties.Value("Project", "Part Number") & vbLf & "Select yes to edit Part Number","Current Part Number:",MessageBoxButtons.YesNo)
+If RESPONSE = vbYes Then
+	PN = InputBox("Edit Part Number", "Part Number", iProperties.Value("Project", "Part Number"))
+	If PN = "" Then
+		'do nothing
+		Else
+		iProperties.Value("Project", "Part Number") = PN
+	End If
+	Else
+	'do nothing
+End If
+
+
+
+RESPONSE = MessageBox.Show("Description: " & iProperties.Value("Project", "Description") & vbLf & "Select yes to edit Description","Current Description:",MessageBoxButtons.YesNo)
+If RESPONSE = vbYes Then
+	desc = InputBox("Edit Description", "Description", iProperties.Value("Project", "Description"))
+	If desc = "" Then
+		'do nothing
+		Else
+		iProperties.Value("Project", "Description") = desc
+	End If
+	Else
+	'do nothing
+End If
+
+
+myName= ThisApplication.GeneralOptions.UserName
+
+If iProperties.Value("Summary", "Author") <> myName Then
+iProperties.Value("Summary", "Author") = myName
+MessageBox.Show("The Author iProperty has been updated","an iLogic message for: " & myName)
+End If
+
+If iProperties.Value("Project", "Designer") <> myName Then
+iProperties.Value("Project", "Designer") = myName
+MessageBox.Show("The Designer iProperty has been updated","an iLogic message for: " & myName)
+End If
+
+
+RESPONSE = MessageBox.Show("Project: " & iProperties.Value("Project", "Project") & vbLf & "Select yes to edit Project","Current Project:",MessageBoxButtons.YesNo)
+If RESPONSE = vbYes Then
+	Project = InputBox("Edit Project", "Project", iProperties.Value("Project", "Project"))
+	If Project = "" Then
+		'do nothing
+		Else
+		iProperties.Value("Project", "Project") = Project
+	End If
+	Else
+	'do nothing
+End If
+
+
+'iProperties.Value("Summary", "Author") = "CAK"
+iProperties.Value("Project", "Creation Date") = Now
+'iProperties.Value("Project", "Designer") = "CAK"
+'iProperties.Value("Project", "Project") = "SEVEN 3.0"
+ 

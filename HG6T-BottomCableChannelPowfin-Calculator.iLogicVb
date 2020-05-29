@@ -1,0 +1,57 @@
+﻿'''Creator: 		Douglas Wisser
+'''Creation Date:	07.10.2018
+'''Revision:		0
+'''Revision Date:	N/A
+'''Inputs:			Interior Finish (INFIN) & Exterior Finish (OUTFIN)
+'''Outputs:			Bottom Channel POWFIN (POWFIN2) and Errors (ERRORS)
+'''Description:		This function is indended for use with the Mercury Gen 6 Technologyy bridge and cable bridge (HG6T and HG6C). Its purpose is to drive the
+'''					correct powder finish color for the bottom cable channel (HG6T-BCC-PP & HG6C-BCC-PP) based on INFIN and OUTFIN. The logic is that any 
+'''					solid colored OUTFIN input will output a matching powder finish color. A woodgrain OUTFIN will output a powder finish color that matches
+'''					the INFIN. If the supplied OUTFIN has not yet been entered, the rule will output an error into the process rule.
+
+FileName = ThisDoc.FileName(True)								'with extension
+
+Dim ERRORS As String = ""										'Initialize ERRORS Text
+Dim POWFIN2 As String = ""										'Initialize POWFIN2 Text
+Dim OUTFIN As String = iProperties.Value("Custom", "OUTFIN")	'Pull in External Finish from model
+Dim INFIN As String = iProperties.Value("Custom", "INFIN")		'Pull in Internal Finish from model
+
+Select Case OUTFIN
+
+Case "BK"					'Black
+	POWFIN2 = OUTFIN
+Case "CH"					'Charcoal
+	POWFIN2 = OUTFIN
+Case "DT"					'Studio Teak
+	POWFIN2 = INFIN
+Case "EH"					'Blond Echo
+	POWFIN2 = INFIN
+Case "FE"					'Fine Sycamore
+	POWFIN2 = INFIN
+Case "FJ"					'Frosty White
+	POWFIN2 = OUTFIN
+Case "FQ"					'Fashion Grey
+	POWFIN2 = OUTFIN
+Case "GY"					'Satin Gray
+	POWFIN2 = OUTFIN
+Case "KM"					'Kensington Maple
+	POWFIN2 = INFIN
+Case "M2"					'Dark Champagne
+	POWFIN2 = OUTFIN
+Case "MW"					'Dark Champagne
+	POWFIN2 = INFIN
+Case "RV"					'River Cherry
+	POWFIN2 = INFIN
+Case "SG"					'Slate
+	POWFIN2 = OUTFIN
+Case "TBD"					'TBD FOR TESTING
+	POWFIN2 = OUTFIN
+Case "WA"					'Silver (White Aluminum)
+	POWFIN2 = OUTFIN
+Case Else
+	POWFIN2 = OUTFIN
+	ERRORS = ERRORS & "ERROR IN HG6T-BOTTOMCABLECHANNELPOWFIN-CALCULATOR RULE. SELECTED OUTFIN IS NOT IN THE MATRIX. PLEASE LOAD OUTFIN AND PUBLISH RULE. " & FileName & " /n"
+End Select
+
+iProperties.Value("Custom", "ERRORS") = iProperties.Value("Custom", "ERRORS") & ERRORS
+iProperties.Value("Custom", "POWFIN2") = POWFIN2

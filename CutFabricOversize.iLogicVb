@@ -1,0 +1,45 @@
+﻿PartName = iProperties.Value("Project", "Part Number")
+
+DIMA = CDbl(iProperties.Value("Custom", "DIMA"))
+DIMB = CDbl(iProperties.Value("Custom", "DIMB"))
+
+Select Case PartName
+	Case "CUTFABRIC", "CUTFABRIC-A", "CUTFABRIC-B", "CUTFABRIC-I", "CUTFABRIC-O"
+		If DIMB > 60 Then
+			OversizeA = 4
+			OversizeB = 4
+		Else
+			OversizeA = 3
+			OversizeB = 3
+		End If
+	Case "CUTSYNERGYFAB", "CUTSYNERGYFAB-A", "CUTSYNERGYFAB-B", "AISLEFABRIC-I", "AISLEFABRIC-O", "CUTCUSHION", "AISLEPET-I", "AISLEPET-O"
+		OversizeA = 5
+		OversizeB = 5
+	Case "TONICSIDEFAB-A", "TONICSIDEFAB-B"
+		OversizeA = 4
+		OversizeB = 4
+	Case "CUTDACRON", "DACRON-A", "DACRON-B"
+		OversizeA = 3
+		OversizeB = 3
+	Case "CUTNONSKID", "CUTPETFAB", "CUTMERCURYFAB"
+		OversizeA = 2
+		OversizeB = 2
+	Case "CUTMSG2FAB"
+		'OversizeA extra large to prevent fabric from snagging on flat head screws.
+		If DIMB > 60 Then
+			OversizeA = 6
+			OversizeB = 4
+		Else
+			OversizeA = 5
+			OversizeB = 3
+		End If
+	Case Else
+		ERRORS = ERRORS & "Error, Part Name '" & PartName & "' is NOT a Valid fabric cut part name. (I: CutFabricOversize - " & FileName & ")\n"
+End Select
+
+inc = .5
+
+iProperties.Value("Custom", "CUTA") = (Round(Round(DIMA,4) / inc) * inc) + OversizeA
+iProperties.Value("Custom", "CUTB") = (Round(Round(DIMB,4) / inc) * inc) + OversizeB
+
+iProperties.Value("Custom", "ERRORS") = ERRORS & iProperties.Value("Custom", "ERRORS")

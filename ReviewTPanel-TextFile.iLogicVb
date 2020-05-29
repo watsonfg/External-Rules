@@ -1,0 +1,784 @@
+﻿'''Creator: Fred Wirtz
+'''Date Made: 3/22/2016
+'''Revision Number: 2
+'''Rev 2: Added check to make sure correct GRM/GROMMET was used and updated rule to use the review text file - Chris Kuchman 5/18/2016
+'''Description: This external rule is for reviewing all t-panel files. The ReviewFile external
+'''rule should be ran which will call this seperate file. This file should only be used to provide
+'''text alerts (in shared review text tile), do not actively change the part without asking the 
+'''user if the change is desired.
+
+Sub Main()
+	TextFileReview = "c:\temp\ReviewFile.txt" 'This text file records if the rule completes and is used as the final file shown
+	TextFileChecks = "c:\temp\ReviewChecks.txt"	'This text file stores all checks made
+	TextFileIssues = "c:\temp\ReviewIssues.txt"	'This is the text file that records all issues found by the review rules
+	
+	'['Declare And Initialize Variables.
+	Dim ERRORS As String = ""
+	Dim WARNINGS As String = ""
+	Dim PartName As String = iProperties.Value("Project", "Part Number")
+	Dim FileName As String = ThisDoc.FileName(True)
+	']
+	
+Try	
+
+	'['Face Group
+	IsFaceGroup = False
+	
+	If PartName LIKE "*FG*" OrElse FileName LIKE "*FG*" Then
+		IsFaceGroup = True
+	End If
+	']
+	
+	'['DIMA and DIMB
+	Dim DIMA As Double = -5
+	Dim DIMB As Double = -5
+	
+	'Check If DIMA and DIMB are resonable
+	'Calculate expected DIMA and DIMB
+	Dim GetDimA As Double = (Measure.ExtentsWidth)
+	Dim GetDimB As Double = (Measure.ExtentsLength)
+	
+	'Retrieve DIMA and DIMB
+	Try
+		DIMA = iProperties.Value("Custom", "DIMA")
+		DIMB = iProperties.Value("Custom", "DIMB")
+	Catch
+		WriteText(TextFileIssues, "Could not pull DIMA and/or DIMB, review ended early due to it lacking all needed information")
+		Throw 'runs the end of the code as the rest of the checks can't be run without the information
+	End Try
+	WriteText(TextFileChecks, "TPanel - DIMA/DIMB - Does it exist",1)
+	
+	'Check if DIMA and DIMB are within tolerance of measured values
+	'Tolerance
+	Dim DIM_Tolerance As Double = 0.5
+	
+	If DIMA >= (GetDimA + DIM_Tolerance) OrElse DIMA <= (GetDimA - DIM_Tolerance) Then
+		ERRORS = ERRORS & " Check DIMA Value (Measured = " & GetDimA & ", iProperty = " & DIMA & "). " & vbNewLine & vbNewLine
+		WriteText(TextFileIssues, "Check DIMA Value (Measured = " & GetDimA & ", iProperty = " & DIMA & ").")
+		WriteText(TextFileChecks, "ISSUE FOUND - ", 0)
+	End If
+	WriteText(TextFileChecks, "TPanel - DIMA - Compares to measured values",1)
+	
+	If DIMB >= (GetDimB + DIM_Tolerance) OrElse DIMB <= (GetDimB - DIM_Tolerance) Then
+		ERRORS = ERRORS & " Check DIMB Value (Measured = " & GetDimB & ", iProperty = " & DIMB & "). " & vbNewLine & vbNewLine
+		WriteText(TextFileIssues, "Check DIMB Value (Measured = " & GetDimB & ", iProperty = " & DIMB & ").")
+		WriteText(TextFileChecks, "ISSUE FOUND - ", 0)
+	End If
+	WriteText(TextFileChecks, "TPanel - DIMB - Compares to measured values",1)
+	
+	'Check If DIMA and DIMB are greater than zero
+	If DIMA <= 0 Then
+		ERRORS = ERRORS & " DIMA Value Is Less Than Or Equal To Zero. " & vbNewLine & vbNewLine
+		WriteText(TextFileIssues, "DIMA Value Is Less Than Or Equal To Zero.")
+		WriteText(TextFileChecks, "ISSUE FOUND - ", 0)
+	End If
+	WriteText(TextFileChecks, "TPanel - DIMA - The value is greater than zero",1)
+	
+	If DIMB <= 0 Then
+		ERRORS = ERRORS & " DIMB Value Is Less Than Or Equal To Zero. " & vbNewLine & vbNewLine
+		WriteText(TextFileIssues, "DIMB Value Is Less Than Or Equal To Zero.")
+		WriteText(TextFileChecks, "ISSUE FOUND - ", 0)
+	End If
+	WriteText(TextFileChecks, "TPanel - DIMB - The value is greater than zero",1)
+	']
+	
+	'['EDGSEQ
+	Dim EDGSEQ As String = ""
+	
+	'Pull iProperty
+	Try
+		EDGSEQ = iProperties.Value("Custom", "EDGSEQ")
+	Catch
+		ERRORS = ERRORS & " Could Not Pull EDGSEQ. " & vbNewLine & vbNewLine
+		WriteText(TextFileIssues, "Could not pull EDGSEQ, review ended early due to it lacking all needed information")
+		Throw 'runs the end of the code as the rest of the checks can't be run without the information
+	End Try
+	
+	'Check if Valid EDGSEQ
+	Select Case EDGSEQ
+		Case "NONE", "1A", "2A", "1B", "2B", "1A1B", "1A2B", "2A1B", "2A2B", "1B1A", "1B2A", "2B1A", "2B2A", "1AC", "2AC", "1BC", "2BC", "1A1BC", "1A2BC", "2A1BC", "2A2BC", "1B1AC", "1B2AC", "2B1AC", "2B2AC"
+			'Okay, Do Nothing
+		Case Else
+			ERRORS = ERRORS & " EDGSEQ is not a valid EDGSEQ. " & vbNewLine & vbNewLine
+			WriteText(TextFileIssues, "EDGSEQ is not a valid EDGSEQ, review ended early due to it lacking all needed information")
+			Throw New System.Exception("An exception has occurred.") 'runs the end of the code as the rest of the checks can't be run without the information
+	End Select
+	
+	'Check If EDGSEQ Matches iProperty
+	EDGSEQ_RESPONSE = MessageBox.Show("Is Edge Sequence: " & EDGSEQ & "?" & vbLf, "Current Edge Sequence:",MessageBoxButtons.YesNo)
+	If EDGSEQ_RESPONSE = vbNo Then
+		ERRORS = ERRORS & " Please Check EDGSEQ. " & vbNewLine & vbNewLine
+		WriteText(TextFileIssues, "Please check EDGSEQ")
+		WriteText(TextFileChecks, "ISSUE FOUND - ", 0)
+	End If
+	WriteText(TextFileChecks, "TPanel - EDGSEQ - You responded that the value is correct",1)
+	']
+	
+	'['EDGTHK
+	Dim EDGTHK As Double = -5
+	
+	Try
+		EDGTHK = iProperties.Value("Custom", "EDGTHK")
+	Catch
+		ERRORS = ERRORS & " Could Not Pull EDGTHK. " & vbNewLine & vbNewLine
+		WriteText(TextFileIssues, "Could not pull EDGTHK, review ended early due to it lacking all needed information")
+		Throw 'runs the end of the code as the rest of the checks can't be run without the information
+	End Try
+	
+	'Verify Edgethickness is a valid thickness
+	Dim StandardEdgeThickness1 As Double = 0.059
+	
+	Select Case EDGTHK
+		Case StandardEdgeThickness1
+			'Do Nothing
+		Case Else
+			ERRORS = ERRORS & " Edge Thickness Is Not A Valid Thickness. " & vbNewLine & vbNewLine	
+			WriteText(TextFileIssues, "Edge thickness is not a valid thickness.")
+			WriteText(TextFileChecks, "ISSUE FOUND - ", 0)			
+	End Select
+	WriteText(TextFileChecks, "TPanel - EDGTHK - The thickness is 1.5mm edgebanding",1)	
+	']
+	
+	'['CUTA and CUTB
+	Dim CUTA As Double = -5
+	Dim CUTB As Double = -5
+	Dim GetCutA As Double = -5
+	Dim GetCutB As Double = -5
+	
+	'Retrieve CUTA and CUTB
+	Try
+		CUTA = iProperties.Value("Custom", "CUTA")
+		CUTB = iProperties.Value("Custom", "CUTB")
+	Catch
+		ERRORS = ERRORS & " Could Not Pull CUTA and/or CUTB. " & vbNewLine & vbNewLine
+		WriteText(TextFileIssues, "Could not pull CUTA and/or CUTB, review ended early due to it lacking all needed information")
+		Throw 'runs the end of the code as the rest of the checks can't be run without the information
+	End Try
+	
+	'CutA - Measure on this part in Y direction, called Width
+	If EDGSEQ = "NONE" Then
+		GetCutA = (Measure.ExtentsWidth)
+	ElseIf EDGSEQ LIKE "*1A*" Then
+		GetCutA = (Measure.ExtentsWidth) - EDGTHK
+	ElseIf EDGSEQ LIKE "*2A*" Then
+		GetCutA = (Measure.ExtentsWidth) - 2 * EDGTHK
+	ElseIf EDGSEQ LIKE "*[12]B*" 
+		GetCutA = (Measure.ExtentsWidth)
+	Else
+		ERRORS = ERRORS & " Can't calculate GetCutA. " & vbNewLine & vbNewLine
+		WriteText(TextFileIssues, "Can't calculate GetCutA.")
+	End If
+	
+	'CutB - Measure on this part in X direction, called Length
+	If EDGSEQ = "NONE" Then
+		GetCutB = (Measure.ExtentsLength)
+	ElseIf EDGSEQ LIKE "*1B*" Then
+		GetCutB = (Measure.ExtentsLength) - EDGTHK
+	ElseIf EDGSEQ LIKE "*2B*" Then
+		GetCutB = (Measure.ExtentsLength) - 2 * EDGTHK
+	ElseIf EDGSEQ LIKE "*[12]A*" 
+		GetCutB = (Measure.ExtentsLength)
+	Else
+		ERRORS = ERRORS & " Can't calculate GetCutA. " & vbNewLine & vbNewLine
+		WriteText(TextFileIssues, "Can't calculate GetCutB.")
+	End If
+	
+	'Check if CUTA and CUTB are within tolerance of measured values
+	'Tolerance
+	Dim CUT_Tolerance As Double = 0.75
+	
+	If CUTA >= (GetCutA + CUT_Tolerance) OrElse CUTA <= (GetCutA - CUT_Tolerance) Then
+		ERRORS = ERRORS & " Check CUTA Value. (Measured = " & GetCutA & ", iProperty = " & CUTA & "). " & vbNewLine & vbNewLine
+		WriteText(TextFileIssues, "Check CUTA value. (Measured = " & GetCutA & ", iProperty = " & CUTA & ").")
+		WriteText(TextFileChecks, "ISSUE FOUND - ", 0)
+	End If
+	WriteText(TextFileChecks, "TPanel - CUTA - The value is close to the measured value",1)
+	
+	
+	If CUTB >= (GetCutB + CUT_Tolerance) OrElse CUTB <= (GetCutB - CUT_Tolerance) Then
+		ERRORS = ERRORS & " Check CUTB Value. (Measured = " & GetCutB & ", iProperty = " & CUTB & "). " & vbNewLine & vbNewLine
+		WriteText(TextFileIssues, "Check CUTB value. (Measured = " & GetCutB & ", iProperty = " & CUTB & ").")
+		WriteText(TextFileChecks, "ISSUE FOUND - ", 0)
+	End If
+	WriteText(TextFileChecks, "TPanel - CUTB - The value is close to the measured value",1)
+	
+	'Check CUTA and CUTB are greater than DIMA and DIMB
+	If CUTA <= DIMA Then
+		ERRORS = ERRORS & " CUTA is Smaller Than DIMA. " & vbNewLine & vbNewLine
+		WriteText(TextFileIssues, "CUTA is smaller than DIMA.")
+		WriteText(TextFileChecks, "ISSUE FOUND - ", 0)
+	End If
+	WriteText(TextFileChecks, "TPanel - CUTA - The value is larger than or equal to DIMA",1)
+	
+	If CUTB <= DIMB Then
+		ERRORS = ERRORS & " CUTB Smaller Than DIMB. " & vbNewLine & vbNewLine
+		WriteText(TextFileIssues, "CUTB is smaller than DIMB.")
+		WriteText(TextFileChecks, "ISSUE FOUND - ", 0)
+	End If
+	WriteText(TextFileChecks, "TPanel - CUTB - The value is larger than or equal to DIMB",1)
+	
+	'Check If CUTA and CUTB are greater than zero
+	If CUTA <= 0 Then
+		ERRORS = ERRORS & " CUTA Value Is Less Than Or Equal To Zero. " & vbNewLine & vbNewLine
+		WriteText(TextFileIssues, "CUTA value is less than or equal to zero.")
+		WriteText(TextFileChecks, "ISSUE FOUND - ", 0)
+	End If
+	WriteText(TextFileChecks, "TPanel - CUTA -  The value is larger than zero",1)
+	
+	If CUTB <= 0 Then
+		ERRORS = ERRORS & " CUTB Value Is Less Than Or Equal To Zero. " & vbNewLine & vbNewLine
+		WriteText(TextFileIssues, "CUTB Value is less than or equal to zero.")
+		WriteText(TextFileChecks, "ISSUE FOUND - ", 0)
+	End If
+	WriteText(TextFileChecks, "TPanel - CUTB -  The value is larger than zero",1)
+	']
+	
+	'['Minimum CUTA and CUTB With Edge Banding.
+	Dim MMtoINCHES As Double = 25.4
+	
+	Dim MinCut As Double = 120 'millimeters. Minimum dimension is 120mm to allow edge banding.
+	
+	'Convert MinCut from mm to Inches
+	MinCut = MinCut / MMtoINCHES
+	
+	'Determine if part can be banded
+	If EDGSEQ LIKE "*B*" Then
+		If CUTB <= MinCut Then
+			ERRORS = ERRORS & " CUTB is Too Small And This Part Can't Be Banded. " & vbNewLine & vbNewLine
+			WriteText(TextFileIssues, "CUTB is too small and this part can't be banded.")
+			WriteText(TextFileChecks, "ISSUE FOUND - ", 0)
+		End If
+	WriteText(TextFileChecks, "TPanel - EDGSEQ - Is the CUTB larger enough to be banded",1)		
+		
+	ElseIf EDGSEQ LIKE "*A*" Then
+		If CUTA <= MinCut Then
+			ERRORS = ERRORS & " CUTA is Too Small And This Part Can't Be Banded. " & vbNewLine & vbNewLine
+			WriteText(TextFileIssues, "CUTA is too small and this part can't be banded.")
+			WriteText(TextFileChecks, "ISSUE FOUND - ", 0)
+		End If
+	End If
+	WriteText(TextFileChecks, "TPanel - EDGSEQ - Is the CUTA larger enough to be banded",1)	
+	']
+	
+	'['EDGFIN
+	Dim EDGFIN As String = "BAD"
+	
+	If EDGSEQ = "NONE" Then
+		Try
+			EDGFIN = iProperties.Value("Custom", "EDGFIN")
+			If EDGFIN <> "" Or EDGFIN = "BAD" Then
+				ERRORS = ERRORS & " Edge Finish Should Be Blank. " & vbNewLine & vbNewLine
+				WriteText(TextFileIssues, "EDGFIN should be blank when EDGSEQ is NONE.")
+				WriteText(TextFileChecks, "ISSUE FOUND - ", 0)
+			End If
+		Catch
+			'No edge sequence so no edgfin required.
+		End Try
+		WriteText(TextFileChecks, "TPanel - EDGFIN - If the EDGSEQ is NONE then the EDGFIN is blank",1)		
+	Else
+		Try
+			EDGFIN = iProperties.Value("Custom", "EDGFIN")
+		Catch
+			ERRORS = ERRORS & " Could Not Pull EDGFIN. " & vbNewLine & vbNewLine
+			WriteText(TextFileIssues, "Could not pull EDGFIN, review ended early due to it lacking all needed information")
+			Throw 'runs the end of the code as the rest of the checks can't be run without the information
+		End Try
+		
+		If EDGFIN = "" Or EDGFIN = "BAD" Then
+			ERRORS = ERRORS & " EDGFIN Must Be A Valid Finish. " & vbNewLine & vbNewLine
+			WriteText(TextFileIssues, "EDGFIN must be a valid finish.")
+			WriteText(TextFileChecks, "ISSUE FOUND - ", 0)			
+		End If
+		WriteText(TextFileChecks, "TPanel - EDGFIN - is the EDGFIN not blank",1)		
+	End If
+	']
+	
+	'['EDGLFT
+	Dim EDGLFT As Double = -5
+	Dim EdgFall As Double = 2
+	Dim EdgLftCutA As Double = 0
+	Dim EdgLftCutB As Double = 0
+	Dim EdgLftCutAMulitplyer As Double = 0
+	Dim EdgLftCutBMulitplyer As Double = 0
+	Dim EdgLftCutTolerance As Double = 3
+	
+	If EDGSEQ = "NONE" Then
+		Try
+			EDGLFT = iProperties.Value("Custom", "EDGLFT")
+			If EDGLFT <> 0 Then
+				ERRORS = ERRORS & " EDGLFT Must Be Zero For EDGSEQ of NONE. " & vbNewLine & vbNewLine
+				WriteText(TextFileIssues, "EDGLFT must be zero for EDGSEQ of NONE.")
+				WriteText(TextFileChecks, "ISSUE FOUND - ", 0)						
+			End If
+		Catch
+			'Don't Need EDGLFT if No EDGSEQ
+		End Try
+		WriteText(TextFileChecks, "TPanel - EDGLFT - is zero when EDGSEQ is NONE",1)
+	Else
+		Try
+			EDGLFT = iProperties.Value("Custom", "EDGLFT")
+		Catch
+			ERRORS = ERRORS & " Could Not Pull EDGLFT. " & vbNewLine & vbNewLine
+			WriteText(TextFileIssues, "Could not pull EDGLFT")
+			WriteText(TextFileChecks, "ISSUE FOUND - ", 0)
+		End Try
+		WriteText(TextFileChecks, "TPanel - EDGLFT - EDGLFT exists",1)
+		
+		'Calculate CUTA EDGLFT
+		If EDGSEQ LIKE "*1A*" Then
+			EdgLftCutAMulitplyer = 1
+		ElseIf EDGSEQ LIKE "*2A*"
+			EdgLftCutAMulitplyer = 2
+		Else
+			EdgLftCutAMulitplyer = 0
+		End If
+		
+		EdgLftCutA = EdgLftCutAMulitplyer * (GetDimA + EdgFall)
+		EdgLftCutATol = EdgLftCutAMulitplyer * EdgLftCutTolerance
+		
+		'Calculate CUTB EDGLFT
+		If EDGSEQ LIKE "*1B*" Then
+			EdgLftCutBMulitplyer = 1
+		ElseIf EDGSEQ LIKE "*2B*"
+			EdgLftCutBMulitplyer = 2
+		Else
+			EdgLftCutBMulitplyer = 0
+		End If	
+		
+		EdgLftCutB = EdgLftCutBMulitplyer * (GetDimB + EdgFall)
+		EdgLftCutBTol = EdgLftCutBMulitplyer * EdgLftCutTolerance
+		
+		'Calculate Total EDGLFT
+		EdgLftTotal = (EdgLftCutA + EdgLftCutB) / 12
+		
+		'Calculate Total Tolerance
+		EdgLftCutTolerance = (EdgLftCutBTol + EdgLftCutATol) / 12
+		
+		'Check if EDGLFT is within tolerance of measured values	
+		If EdgLftTotal >= (EDGLFT + EdgLftCutTolerance) OrElse EdgLftTotal <= (EDGLFT - EdgLftCutTolerance) Then
+			EdgLftTotalMessageBox = Round(EdgLftTotal, 3)
+			ERRORS = ERRORS & " Check EDGLFT Value. (Measured = " & EdgLftTotalMessageBox & ", iProperty = " & EDGLFT & "). " & vbNewLine & vbNewLine
+			WriteText(TextFileIssues, "Check EDGLFT value. (Rule Calculated: " & EdgLftTotalMessageBox & " iProperty Value: " & EDGLFT & ").")
+			WriteText(TextFileChecks, "ISSUE FOUND - ", 0)
+		End If
+		WriteText(TextFileChecks, "TPanel - EDGLFT - The value is close to the measured value",1)
+	End If
+	
+	If IsFaceGroup Then
+		WARNINGS = WARNINGS & " This Part Is Possibly a Facegroup, You Should Check the EDGLFT Calculation. "
+		WriteText(TextFileIssues, "This Part Is Possibly a Facegroup, You Should Check the EDGLFT Calculation")
+	End If
+	']
+
+	'['FLIP
+	Dim FLIP As String = ""
+	
+	FLIP_RESPONSE = MessageBox.Show("Does This Panel Require a Flip On The Router?" & vbLf, "FLIP:",MessageBoxButtons.YesNo)
+	
+	If FLIP_RESPONSE = vbYes Then
+		Try 
+			FLIP = iProperties.Value("Custom", "FLIP")
+		Catch
+			ERRORS = ERRORS & " Missing FLIP iProperty. " & vbNewLine
+			WriteText(TextFileIssues, "Missing FLIP iProperty")
+			WriteText(TextFileChecks, "ISSUE FOUND - ", 0)
+		End Try
+		WriteText(TextFileChecks, "TPanel - FLIP - FLIP exists",1)		
+		
+		If FLIP <> "Y" Then
+			ERRORS = ERRORS & " Please Check Your FLIP iProperty " & vbNewLine & vbNewLine
+			WriteText(TextFileIssues, "FLIP is not Y")
+			WriteText(TextFileChecks, "ISSUE FOUND - ", 0)
+		End If
+		WriteText(TextFileChecks, "TPanel - FLIP - FLIP is Y, matching the textbox answer",1)
+	ElseIf FLIP_RESPONSE = vbNo Then
+		Try 
+			FLIP = iProperties.Value("Custom", "FLIP")
+		Catch
+			'Do Nothing
+		End Try
+		
+		If FLIP <> "N" OrElse FLIP <> "" Then
+			ERRORS = ERRORS & " Please Check Your FLIP iProperty " & vbNewLine & vbNewLine
+			WriteText(TextFileIssues, "FLIP is not N or Blank")
+			WriteText(TextFileChecks, "ISSUE FOUND - ", 0)			
+		End If
+		WriteText(TextFileChecks, "TPanel - FLIP - FLIP is N or Blank, matching the textbox answer",1)		
+	End If
+	']
+	
+	'['ERP_OPERATION
+	Dim ERP_OPERATION As Double = 0
+	Dim ERP_OPERATION_String As String = ""
+	
+	Try
+		ERP_OPERATION = iProperties.Value("Custom", "ERP_OPERATION")
+	Catch
+		ERRORS = ERRORS & " Could Not Pull ERP_OPERATION. " & vbNewLine & vbNewLine
+		WriteText(TextFileIssues, "Could not pull ERP_OPERATION, review ended early due to it lacking all needed information")	
+		Throw 'runs the end of the code as the rest of the checks can't be run without the information		
+	End Try
+	WriteText(TextFileChecks, "TPanel - ERP_OPERATION - ERP_OPERATION exists",1)		
+	
+	ERP_Allowed = {{441, "Panel Requiring a Flip Program"}, {460, "Panel Pocketed Before Banding Or Pocketed With No Banding"}, {500 , "Panel With 1.5mm or 3.0mm Banding (This Also Works For The BIMA"}, {600, "Face or Drawer Bottom With No Banding Going To Comp"}, {620, "Panel With No Banding Going To Comp"}, {700, "Panel Not Banded At 500 But Going To Finish"}, {750, "Panel Going to Fabric Assembly"}}
+	
+	If FLIP = "Y" AndAlso ERP_OPERATION <> 441 Then
+		ERRORS = ERRORS & " ERP_OPERATION Must Be 441 For a FLIP of Y. [NOT: " & ERP_OPERATION & "]" & vbNewLine & vbNewLine
+		WriteText(TextFileIssues, "ERP_OPERATION must be 441 for a FLIP of Y")
+		WriteText(TextFileChecks, "ISSUE FOUND - ", 0)	
+	Else
+		WriteText(TextFileChecks, "TPanel - ERP_OPERATION - ERP_OPERATION is 441 if the FLIP is Y",1)
+		For index = 0 To ERP_Allowed.GetUpperBound(0)
+	
+			If ERP_OPERATION = ERP_Allowed(index, 0) Then
+				If index = 0 Then
+					ERP_OPERATION_String = "Is This a " & ERP_Allowed(index, 1) & " (" & ERP_Allowed(index, 0) & ")?"
+				Else
+					ERP_OPERATION_String = "Is This a " & ERP_Allowed(index, 1) & " (" & ERP_Allowed(index, 0) & ") And Not One Of The Following? " & vbNewLine & vbNewLine & ERP_OPERATION_String
+				End If
+				Exit For
+			End If
+	
+			If index = 0 Then
+				ERP_OPERATION_String = ERP_OPERATION_String & ERP_Allowed(index, 1) & " (" & ERP_Allowed(index, 0) & ")"
+			Else
+				ERP_OPERATION_String = ERP_OPERATION_String & vbNewLine & ERP_Allowed(index, 1) & " (" & ERP_Allowed(index, 0) & ")"
+			End If
+	
+		Next
+	
+		ERP_RESPONSE = MessageBox.Show(ERP_OPERATION_String & vbLf, "Current Routing:",MessageBoxButtons.YesNo)
+	
+		If ERP_RESPONSE = vbNo Then
+			ERRORS = ERRORS & " Please Update The ERP_OPERATION. " & vbNewLine & vbNewLine
+			WriteText(TextFileIssues, "Please update the ERP_OPERATION")
+			WriteText(TextFileChecks, "ISSUE FOUND - ", 0)
+		End If
+		WriteText(TextFileChecks, "TPanel - ERP_OPERATION - The ERP_OPERATION has been confirmed by the reviewer",1)		
+	End If
+	']
+	
+	'['EXPORT
+	Dim EXPORT As String = ""
+	
+	Try
+		EXPORT = iProperties.Value("Custom", "EXPORT")
+	Catch
+		ERRORS = ERRORS & " Could Not Pull EXPORT. " & vbNewLine & vbNewLine
+		WriteText(TextFileIssues, "Could not pull EXPORT, review ended early due to it lacking all needed information")	
+		Throw 'runs the end of the code as the rest of the checks can't be run without the information	
+	End Try
+	
+	If EXPORT = "" Then
+		ERRORS = ERRORS & " Blank Is Not A Valid Value for Export. " & vbNewLine & vbNewLine
+		WriteText(TextFileIssues, "Blank is not a valid value for Export")
+		WriteText(TextFileChecks, "ISSUE FOUND - ", 0)		
+	Else
+		'Check If EXPORT Matches iProperty
+		EXPORT_RESPONSE = MessageBox.Show("Is The Export Sketh You Want To Use: " & iProperties.Value("Custom", "EXPORT") & "?" & vbLf, "Current Export:",MessageBoxButtons.YesNo)
+		If EXPORT_RESPONSE = vbNo Then
+			ERRORS = ERRORS & " Check Export Sketch Selected. " & vbNewLine & vbNewLine
+			WriteText(TextFileIssues, "Check export sketch selected")
+			WriteText(TextFileChecks, "ISSUE FOUND - ", 0)		
+		End If
+	End If
+	WriteText(TextFileChecks, "TPanel - EXPORT - Is not Blank and is confirmed by reviewer",1)	
+	']
+	
+	'['MATFIN
+	Dim MATFIN As String = ""
+	
+	Try
+		MATFIN = iProperties.Value("Custom", "MATFIN")
+	Catch
+		ERRORS = ERRORS & " Could Not Pull MATFIN. " & vbNewLine & vbNewLine
+		WriteText(TextFileIssues, "Could not pull MATFIN, review ended early due to it lacking all needed information")	
+		Throw 'runs the end of the code as the rest of the checks can't be run without the information	
+	End Try
+	
+	If MATFIN = "" Then
+		ERRORS = ERRORS & " Not a Valid MATFIN. " & vbNewLine & vbNewLine
+		WriteText(TextFileIssues, "MATFIN cannot be Blank")
+		WriteText(TextFileChecks, "ISSUE FOUND - ", 0)
+	End If
+	WriteText(TextFileChecks, "TPanel - MATFIN - Is not Blank",1)
+	']
+	
+	'['MATTYP
+	Dim MATTYP As String = ""
+	
+	Try
+		MATTYP = iProperties.Value("Custom", "MATTYP")
+	Catch
+		ERRORS = ERRORS & " Could Not Pull MATTYP. " & vbNewLine & vbNewLine
+		WriteText(TextFileIssues, "Could not pull MATTYP, review ended early due to it lacking all needed information")	
+		Throw 'runs the end of the code as the rest of the checks can't be run without the information	
+	End Try
+	
+	Select Case MATTYP
+		Case "5P2", "6M2", "9M2"
+			'Okay, Do Nothing
+		Case Else
+			ERRORS = ERRORS & " Not a Valid MATTYP. " & vbNewLine & vbNewLine
+			WriteText(TextFileIssues, "MATFIN cannot be Blank")
+			WriteText(TextFileChecks, "ISSUE FOUND - ", 0)
+	End Select
+	WriteText(TextFileChecks, "TPanel - MATTYP - Is not Blank",1)
+	']
+	
+	
+	'['MATTHK
+	Dim MATTHK As Double = 0
+	Dim FIVEP2MATTHK As Double = 0.75
+	Dim SIXM2MATTHK As Double = 0.75
+	Dim NINEM2MATTHK As Double = 1.125
+	
+	Try
+		MATTHK = iProperties.Value("Custom", "MATTHK")
+	Catch
+		ERRORS = ERRORS & " Could Not Pull MATTHK. " & vbNewLine & vbNewLine
+		WriteText(TextFileIssues, "Could not pull MATTHK, review ended early due to it lacking all needed information")	
+		Throw 'runs the end of the code as the rest of the checks can't be run without the information	
+	End Try
+	
+	Select Case MATTYP
+		Case "5P2", "6M2"
+			If MATTHK <> FIVEP2MATTHK Then
+				ERRORS = ERRORS & " MATTHK Should Be " & FIVEP2MATTHK & " For a MATTYP of 5P2 or 6M2. " & vbNewLine & vbNewLine	
+				WriteText(TextFileIssues, "MATTHK should be " & FIVEP2MATTHK & " for a MATTYP of 5P2 or 6M2")
+				WriteText(TextFileChecks, "ISSUE FOUND - ", 0)
+			End If
+		Case "9M2"
+			If MATTHK <> NINEM2MATTHK Then
+				ERRORS = ERRORS & " MATTHK Should Be " & NINEM2MATTHK & " For a MATTYP of 9M2. " & vbNewLine & vbNewLine
+				WriteText(TextFileIssues, "MATTHK should be " & NINEM2MATTHK & " for a MATTYP of 9M2")
+				WriteText(TextFileChecks, "ISSUE FOUND - ", 0)
+			End If	
+		Case Else
+			ERRORS = ERRORS & " Can't Determine Required MATTHK for MATTYP. " & vbNewLine & vbNewLine
+			WriteText(TextFileIssues, "Can't determine required MATTHK for MATTYP")
+			WriteText(TextFileChecks, "ISSUE FOUND - ", 0)
+	End Select
+	WriteText(TextFileChecks, "TPanel - MATTYP - MATTHK is the required value for MATTYP",1)
+	']
+	
+	'['PREMILL
+	Dim PREMILL As String = ""
+	
+	Try
+		PREMILL = iProperties.Value("Custom", "PREMILL")
+	Catch
+		ERRORS = ERRORS & " Could Not Pull PREMILL. " & vbNewLine & vbNewLine
+		WriteText(TextFileIssues, "Could not pull PREMILL, review ended early due to it lacking all needed information")	
+		Throw 'runs the end of the code as the rest of the checks can't be run without the information	
+	End Try
+	
+	If EDGSEQ = "NONE" Then
+		If PREMILL <> "NOPREMIL" Then
+			ERRORS = ERRORS & " PREMILL Is Not The Correct Value. " & vbNewLine & vbNewLine
+			WriteText(TextFileIssues, "PREMILL is not the correct value")
+			WriteText(TextFileChecks, "ISSUE FOUND - ", 0)
+		End If
+	Else
+		If PREMILL <> EDGTHK Then
+			ERRORS = ERRORS & " PREMILL Is Not The Correct Value. " & vbNewLine & vbNewLine
+			WriteText(TextFileIssues, "PREMILL is not the correct value")
+			WriteText(TextFileChecks, "ISSUE FOUND - ", 0)
+		End If
+	End If
+	WriteText(TextFileChecks, "TPanel - PREMILL - value matches expected from EDGTHK",1)
+	']
+	
+	'['RLOAD
+	Dim RLOAD As Double = 0
+	
+	Try
+		RLOAD = iProperties.Value("Custom", "RLOAD")
+	Catch
+		ERRORS = ERRORS & " Could Not Pull RLOAD. " & vbNewLine & vbNewLine
+		WriteText(TextFileIssues, "Could not pull RLOAD, review ended early due to it lacking all needed information")	
+		Throw 'runs the end of the code as the rest of the checks can't be run without the information	
+	End Try	
+	
+	If RLOAD <= 0 Then
+		ERRORS = ERRORS & " RLOAD Value Is Too Small. " & vbNewLine & vbNewLine
+	End If
+	']
+	
+	'['PANELOPT1
+	Dim ActivePANELOPT1 As Boolean = True
+	
+	Dim PANELOPT1 As String = ""
+	
+	Try
+		PANELOPT1 = iProperties.Value("Custom", "PANELOPT1")
+	Catch
+		ERRORS = ERRORS & " Could Not Pull PANELOPT1, PANELOPT1 May Not Exist. " & vbNewLine & vbNewLine
+		ActivePANELOPT1 = False
+	End Try	
+	
+	'Check If EXPORT Matches iProperty
+	If ActivePANELOPT1 Then
+		PANELOPT1_RESPONSE = MessageBox.Show("Is The PANELOPT1 Value You Want To Use: " & iProperties.Value("Custom", "PANELOPT1") & "?" & vbLf, "Current PANELOPT1:",MessageBoxButtons.YesNo)
+		If PANELOPT1_RESPONSE = vbNo Then
+			ERRORS = ERRORS & " You Should Change PANELOPT1. " & vbNewLine & vbNewLine	
+		End If
+	End If
+	']
+	
+	'['PULL
+	Dim PULL As String = ""
+	
+	PULL_RESPONSE = MessageBox.Show("Does This Panel Have A Pull Related Geometry?" & vbLf, "Pull:",MessageBoxButtons.YesNo)
+	If PULL_RESPONSE = vbYes Then
+		Try
+			PULL = iProperties.Value("Custom", "PULL")
+		Catch
+			ERRORS = ERRORS & " Missing Pull iProperty. " & vbNewLine & vbNewLine
+		End Try	
+	End If
+	']
+	
+	'['LOCK
+	Dim LCK As String = ""
+	
+	LOCK_RESPONSE = MessageBox.Show("Does This Panel Have A LOCK Related Geometry?" & vbLf, "Pull:",MessageBoxButtons.YesNo)
+	If LOCK_RESPONSE = vbYes Then
+		Try
+			LCK = iProperties.Value("Custom", "LOCK")
+		Catch
+			ERRORS = ERRORS & " Missing LOCK iProperty. " & vbNewLine & vbNewLine
+		End Try	
+	End If
+	']
+	
+	'['HAND
+	Dim HAND As String = ""
+	
+	HAND_RESPONSE = MessageBox.Show("Is This Panel Handed?" & vbLf, "Hand:",MessageBoxButtons.YesNo)
+	If HAND_RESPONSE = vbYes Then
+		Try
+			HAND = iProperties.Value("Custom", "HAND")
+		Catch
+			ERRORS = ERRORS & " Missing HAND iProperty. " & vbNewLine & vbNewLine
+		End Try	
+	End If
+	']
+	
+	'['SQFT
+	Dim SQFT As Double = 0
+	Dim SQFT_To_SQIN As Double = 144
+	
+	Try
+		SQFT = iProperties.Value("Custom", "SQFT")
+	Catch
+		ERRORS = ERRORS & " Could Not Pull SQFT. " & vbNewLine & vbNewLine
+		MessageBox.Show(ERRORS, "ERRORS")
+		Exit Sub
+	End Try	
+	
+	If SQFT <= 0 Then
+		MessageBox.Show("Message", "Title")
+		ERRORS = ERRORS & " SQFT Value Is Too Small. " & vbNewLine & vbNewLine
+	End If
+	
+	GetSQFT = (GetCUTA * GetCUTB) / SQFT_To_SQIN
+	GetSQFT_Min = ((GetCUTA - CUT_Tolerance) * (GetCUTB - CUT_Tolerance)) / SQFT_To_SQIN
+	GetSQFT_Max = ((GetCUTA + CUT_Tolerance) * (GetCUTB + CUT_Tolerance)) / SQFT_To_SQIN
+	
+	If SQFT < GetSQFT_Min OrElse SQFT > GetSQFT_Max Then 
+		ERRORS = ERRORS & " Check SQFT Value. (Calculated = " & GetSQFT & ", iProperty = " & SQFT & "). " & vbNewLine & vbNewLine
+	End If
+	']
+	
+	'['GROMMET
+	Try
+		GRM = iProperties.Value("Custom", "GRM")
+
+		ERRORS = ERRORS & " GRM is not lot defining in T-PANELs, use GROMMET instead." & vbNewLine & vbNewLine
+		'WriteText(TextFileIssues,"GRM is not lot defining in T-PANELs, use GROMMET instead.")
+		'WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+	Catch
+		'Good, this is just making sure that the right iProperty name is being used.
+	End Try
+	
+	'WriteText(TextFileChecks,"Panel - GROMMET - Common non-lot defining term (GRM) was not used", 1)
+	']
+	
+	'['Other non-working segment
+	'Non-working iProperties that not not checked in other parts of the rule.
+	OtherNonWorkingiProperties= {{"ASHOPT"},{"AVOPT"},{"C1CFG"},{"C2CFG"},{"C3CFG"},{"C4CFG"},{"CASTERS"},{"EDGMAT"},{"EPTYP"},{"GROMMET"},{"LOCK2"},{"MATFINB"},{"MFGOPT"},{"MPHEIGHT"},{"MPINSET"},{"MTRAMT"},{"MTRCFG"},{"PANELOPT2"},{"PAPERSHELF"},{"POCKET"},{"PULL2"},{"PWRLOC"},{"PWRSIZ"},{"SBASTYP"},{"STRSUPPORT"},{"VDTYPE"}}
+	
+	For index = 0 To OtherNonWorkingiProperties.GetUpperBound(0)
+		iPropertyName = OtherNonWorkingiProperties(index, 0)
+		Try
+			iPropertyValue = iProperties.Value("Custom", OtherNonWorkingiProperties(index, 0))
+		Catch
+			iPropertyValue = "Not Found"
+		End Try
+	
+		MessageString = MessageString & iPropertyName & ": " & vbTab & iPropertyValue & vbNewLine
+	Next
+	
+	MessageString = "Your model has the following values for non-working segments (lot defining): " & vbNewLine & MessageString
+	
+	MessageBox.Show(MessageString, "MessageString")
+	']
+	
+	'['Show Errors
+	If ERRORS <> "" Then
+		MessageBox.Show(ERRORS, "ERRORS")
+	End If
+	
+	If WARNINGS <> "" Then
+		MessageBox.Show(WARNINGS, "WARNINGS")
+	End If
+	']
+	WriteText(TextFileReview, "The ReviewTPanel rule has successfully finished running.")
+Catch
+	MessageBox.Show(ERRORS, "ERRORS")
+	MessageBox.Show(WARNINGS, "WARNINGS")
+	MessageBox.Show("The ReviewTPanel has FAILED TO FINISH not all checks were performed", ThisDoc.FileName(True))
+	WriteText(TextFileReview, "The ReviewTPanel has FAILED TO FINISH not all checks were performed")
+End Try
+End Sub
+
+
+Function WriteText(File, Text, Optional EndWithNewLines = 2)
+'''Creator: Chris Kuchman
+'''Date Made: 1/27/2016
+'''Date Updated: 2/6/2016 - CAK
+'''Description: This function is used to write text to a text file. The first arguement is the specific text file you
+'''are writing to and the second is the string you want to pass. If you want the string to be broken up into seperate
+'''lines then add a \n to the string line. By default the string will add 2 new lines between each new string added,
+'''but if you want to add less or more new lines then pass a third argument with the number of new lines generated.
+'''(0 will just append the line to the last line)
+​
+'Sets a stream to pass the text into the notepad file (filestreams only do btyes so we need a stream writer to convert)
+Dim fs As New System.IO.FileStream(File, System.IO.FileMode.Append, System.IO.FileAccess.Write)
+Dim theLog As New System.IO.StreamWriter(fs)
+​
+'Breaks the string up into new lines
+Dim StringArray() As String = Split(Text, "\n ")
+​
+'For each split string, write to the file and add a new line (except for the very last line)
+For i As Integer = 0 To StringArray.Length - 1
+	If i < StringArray.Length - 1  Then
+		theLog.WriteLine(StringArray(i))
+	Else
+		theLog.Write(StringArray(i)) 'Write will not add a new line by default like WriteLine
+	End If
+Next
+​
+Dim j As Integer = 0
+​
+'Add the number of new lines passed into the optional parameter, will loop once if the default value is used
+While EndWithNewLines > j
+	theLog.WriteLine()
+	j += 1
+End While
+​
+'Closes the stream
+theLog.Close()
+End Function
+ 

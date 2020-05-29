@@ -1,0 +1,166 @@
+﻿' <FireOthersImmediately>False</FireOthersImmediately>
+'['GH found this new version here... http://www.chemical-forum.com/thread-374203-1-1.html
+'it sets LOD to iLogic in file it runs in and 1st level of children. Also sets BOM Struture...
+'Active to Normal & Suppressed to Reference
+Option Explicit
+
+ Imports Inventor.LevelOfDetailEnum
+ Imports Inventor.BOMStructureEnum
+
+ Sub Main
+ 
+ 'iLogicVb.UpdateWhenDone = True
+
+ Dim doc As AssemblyDocument
+ Dim oLOD As LevelOfDetailRepresentation
+ Dim oAsmCompDef As ComponentDefinition
+ Dim oComp As ComponentOccurrence
+ Dim oComps As ComponentOccurrences
+ Dim oCompCompDef As AssemblyComponentDefinition
+ Dim LODname As String
+
+ 'Set LODname to whatever you like your LOD's to be named as.
+ LODname = "iLogic"
+
+'MessageBox.Show("EnsureLod is running... " & vbCrLf _
+' & "in: " & ThisDoc.FileName(False)  & vbCrLf _
+' & "from: " & ThisDoc.Path, "Test msg")
+ 
+  doc = ThisDoc.Document
+  If doc.ComponentDefinition.RepresentationsManager.ActiveLevelOfDetailRepresentation.LevelOfDetail <> kCustomLevelOfDetail Then 
+         oAsmCompDef = doc.ComponentDefinition
+         Try
+                 'Try to set our assemblies active LOD to the above specified.
+                 oLOD = oAsmCompDef.RepresentationsManager.LevelOfDetailRepresentations.Item(LODname)
+                 oLOD.Activate(True)
+         Catch
+                 'It didn't work so we need to create a new one and then set it.
+                 oAsmCompDef.RepresentationsManager.LevelOfDetailRepresentations.Add(LODname)
+                 oLOD = oAsmCompDef.RepresentationsManager.LevelOfDetailRepresentations.Item(LODname)
+                 oLOD.Activate(True)
+         End Try
+ End If
+
+ 'Iterate through all of the component's in the assembly.
+ oComps = doc.ComponentDefinition.Occurrences
+ For Each oComp In oComps
+         'Make sure the component isn't a weld bead.
+         If Left(oComp.Name, 10) <> "_Weldbead:"
+                 'Make sure the component isn't suppressed to avoid the resulting error.
+                 If oComp.Suppressed = False Then
+                         'The following 1 line is optional, feel free to remove it. Do NOT remove the if suppressed check!
+                         'oComp.BOMStructure = kDefaultBOMStructure
+                         'Make sure the component isn't a virtual component to avoid the resulting error.
+                         If Not TypeOf oComp.Definition Is VirtualComponentDefinition Then
+                                 'Make sure the component is an assembly.
+                                 If oComp.ReferencedDocumentDescriptor.ReferencedDocumentType = kAssemblyDocumentObject Then
+                                         'Check if the active LOD is already correct or not.
+                                         If oComp.ActiveLevelOfDetailRepresentation <> LODname Then 
+                                                 Try
+                                                         'Try to set our copmponent's active LOD to the above specified.
+                                                         oComp.SetLevelOfDetailRepresentation(LODname, True)
+                                                 Catch
+                                                         'It didn't work so we need to create a new one and then set it.
+                                                         oCompCompDef = oComp.Definition
+                                                         oCompCompDef.RepresentationsManager.LevelOfDetailRepresentations.Add(LODname)
+                                                         oComp.SetLevelOfDetailRepresentation(LODname, True)
+                                                 End Try
+                                         End If
+                                 End If
+                         End If
+                 Else
+'						MessageBox.Show("EnsureLod, Else (Suppresed) is running... " & vbCrLf _
+'						 & " the 'oComp.Name' is: " & oComp.Name  & vbCrLf _
+'						 & " the 'oComp.BOMStructure' is: " & oComp.BOMStructure, "Test msg" )
+'						
+'                         'The following 5 lines is optional, feel free to remove it.
+'                         If oComp.BOMStructure <> kReferenceBOMStructure Then
+'                                 Component.IsActive(oComp.Name) = True
+'								 
+'                                 oComp.BOMStructure = kReferenceBOMStructure
+'                                 Component.IsActive(oComp.Name) = False
+'                         End If
+                         '
+                 End If
+         End If
+ Next
+
+ End Sub
+']
+
+
+'''GH modified code above from code on these 2 sites
+'http://forums.autodesk.com/t5/Autodesk-Inventor-Customization/Level-of-Detail-macro/td-p/2992748
+'http://inventbetter.blogspot.com/2012/01/setting-level-of-detail-with-ilogic.html
+
+'''' Original old rule below here, select all and uncomment one time.
+
+''['Check the Computers Enviornment variable, are we on Development or Deployed?
+'Dim ErrMsg As String = Environ("ILOGIC_ErrMsg")
+'If ErrMsg = "true" Then 
+'	InDevelopment = True
+'Else		'If the PC is missing the Environment Variable then ShowErrWarnMsg will be set to false 
+'	InDevelopment = False 'Safety rules, force to false in case on server
+'End If
+'']
+'
+'
+''['Define variables used multiple places
+'Dim doc as AssemblyDocument = ThisDoc.Document
+'PartName = ThisDoc.FileName(True)
+'']
+'
+''['Check for 56072 (Custom LOD) if not, force to iLogic, if no iLogic create it
+'If InDevelopment Then
+'	'GH created 1/26/2012 and set to run in Dev only...
+'	'If Brandt can Get Time And make vb code To change children To iLogic LoD we may run this in both Dev and Depoyed.
+'	If doc.ComponentDefinition.RepresentationsManager.ActiveLevelOfDetailRepresentation.LevelOfDetail <> 56072 Then 'LevelOfDetailEnum.kMasterLevelOfDetail  
+'		MessageBox.Show("The LOD for '" & PartName & "' was not 'iLogic'! Found and attempted correction by 'EnsureLod' external rule." , "Development only Message from 'EnsureLod' rule")
+'		Dim oLOD As LevelOfDetailRepresentation
+'		Dim oAsmCompDef As ComponentDefinition
+'		oAsmCompDef = doc.ComponentDefinition
+'		Try
+'			oLOD = oAsmCompDef.RepresentationsManager.LevelOfDetailRepresentations.Item("iLogic").Activate(True)
+'		Catch
+'			Dim nLOD As LevelOfDetailRepresentation
+'			nLOD = oAsmCompDef.RepresentationsManager.LevelOfDetailRepresentations.Add("iLogic")
+'			oLOD = nLOD
+'		Finally
+'			oLOD = oAsmCompDef.RepresentationsManager.LevelOfDetailRepresentations.Item("iLogic").Activate(True)
+'		End Try
+'	End If
+'End If
+'']
+'
+''''GH test idea 12/26/12, set error if not iLogic, do both in development and on server
+''['Check for 56072 (Custom LOD) if not, return an error
+''MessageBox.Show("Show LOD from 'EnsureLod' (56072 is Custom): " & doc.ComponentDefinition.RepresentationsManager.ActiveLevelOfDetailRepresentation.LevelOfDetail , "Test LOD")
+'If doc.ComponentDefinition.RepresentationsManager.ActiveLevelOfDetailRepresentation.LevelOfDetail <> 56072 Then 'LevelOfDetailEnum.kMasterLevelOfDetail  
+'	'MessageBox.Show("Message inside if, not Custom LOD", "Test Msg")
+'	iProperties.Value("Custom", "ERRORS") = "The LOD on '" & PartName & "' is not correct"
+'End If
+'']
+'
+'
+''''GH modified code above from code on these 2 sites
+''http://forums.autodesk.com/t5/Autodesk-Inventor-Customization/Level-of-Detail-macro/td-p/2992748
+''http://inventbetter.blogspot.com/2012/01/setting-level-of-detail-with-ilogic.html
+''We need to make sure the LOD is set correctly : 
+'
+''Side note
+''Public Enum LevelOfDetailEnum
+' ' kMasterLevelOfDetail = 56065
+'
+'  'kAllComponentsSuppressedLevelOfDetail = 56066
+'  'kAllPartsSuppressedLevelOfDetail = 56067
+'
+'  'kAllContentSuppressedLevelOfDetail = 56068
+'  'kSandboxLevelOfDetail = 56069
+'
+'  'kTransientLevelOfDetail = 56070
+'  'kSubstituteLevelOfDetail = 56071
+'
+'  'kCustomLevelOfDetail = 56072
+'  'kLastActiveLevelOfDetail = 56073
+''End Enum
+'']

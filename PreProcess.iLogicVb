@@ -1,0 +1,30 @@
+﻿ '['External Debug Routine
+AddVbFile "DebugHelper.vb" 'Defines external rule
+Dim Dbg as New DebugHelper(ThisDoc.Document, SharedVariable)
+Try : 'Dbg.DumpProperties() : 'Dbg.DumpParameters()
+']
+
+
+Select Case Right(ThisDoc.FileName(True),3)
+	Case "iam"
+		iLogicVb.RunExternalRule("EnsureLod")
+		'add others as needed
+	'Case "ipt"
+	'Case "idw"
+	'Case Else
+End Select 
+
+
+'['Send any caught exceptions to ERRORS and log and Development user
+ERRORS = iProperties.Value("Custom", "ERRORS") 'must update ERRORS variable, values could come from external rule
+Catch ex As Exception
+	ExFull = ("Fatal error in model … " & ThisDoc.PathAndFileName(False) & "\n  Msg: " & ex.Message & "\n   More Info: " & ex.ToString)
+	ExBrief = ("Fatal error in model …" & ThisDoc.FileName(True) & "\n  Msg: " & ex.Message)
+	ERRORS = ERRORS & Left(ExBrief,255)
+	iProperties.Value("Custom", "ERRORS") = Left(ERRORS,503)
+	Dbg.Log("1of1 Catch: " & ExFull)
+	'Shows full text description as message box durring development	
+	If ShowErrWarnMsg Then	MessageBox.Show(ExFull, "Development Only 'More Info' Message.  From: "& ThisDoc.FileName(True))
+End Try
+If ShowErrWarnMsg Then If ERRORS <> "" Then MessageBox.Show(ERRORS, "ERRORS from: "& ThisDoc.FileName(True))
+']

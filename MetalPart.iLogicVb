@@ -1,0 +1,107 @@
+﻿' <FireOthersImmediately>False</FireOthersImmediately>
+'Note: when run solo as external rule rather than called from a part, this error is typical...
+'	"Object reference not set to an instance of an object."
+
+'['Declare External Routine(s)
+AddVbFile "classLLOAD.vb" 						'Defines external rule
+Dim lLoad As New LLOAD(ThisDoc.Document)
+Dim PropertyCheck As New LLOAD(ThisDoc.Document)
+']
+
+'['Get driving models preference for showing "OK" testing messages via SharedVariable
+If Not SharedVariable.Exists("ShowOkMsgMetalPart") Then 'force false as default
+	ShowOkMsgMetalPart = False
+Else'set to user preference
+	ShowOkMsgMetalPart = SharedVariable("ShowOkMsgMetalPart")
+	'MessageBox.Show("ShowOkMsgMetalPart value: " & ShowOkMsgMetalPart, "ShowOkMsgMetalPart value")
+End If
+']
+
+'['Toggles to control message boxes, and get FileName
+'Toggles all Error message boxes in parts running this rule.
+'Uses Environment Variable from Computer running Inventor
+'Set to "true" for development PC and "false" for Server running Frontier cadflow.
+'(Ensures Auto Off when model Is published)
+Dim ErrMsg As String = Environ("ILOGIC_ErrMsg")
+If ErrMsg = "true" Then 
+ShowErrMsg = True
+Else		'If the PC is missing the Enviornment Variable then ShowErrWarnMsg will be set to false 
+ShowErrMsg = False
+	If ShowOkMsgMetalPart = True Then
+		ShowOkMsgMetalPart = False	'Safety rule, override true back to false in case on server
+	End If
+End If
+
+PartName = ThisDoc.FileName(True) 'with extension
+']
+
+'['Check if exist and create if not
+'Hopefully a short term routine to add missing iProperties if needed
+Call PropertyCheck.CheckErr()
+Call PropertyCheck.CheckWarn()
+Call PropertyCheck.CheckLload()
+'MessageBox.Show(PartName & " :  ERRORS: " & iProperties.Value("Custom", "ERRORS"), "test ERRORS")
+']
+
+'['clear old iProperty values (Could send existing model errors & warnings as arguments if needed)
+iProperties.Value("Custom", "ERRORS") = ""
+iProperties.Value("Custom", "WARNINGS") = ""
+iProperties.Value("Custom", "LLOAD") = 0
+']
+
+'['Conditionally Show errors, (only pre "Calculate" errors)
+If ShowErrMsg Then 
+	If PropertyCheck.IsInErrorState Then
+		MessageBox.Show(PartName & " :  IsInErrorState:   " & PropertyCheck.IsInErrorState, "LLOAD")
+		MessageBox.Show("iWARNING: " & PropertyCheck.iWARNING.Value, "iWARNING")
+	End If
+End If
+']
+
+'['Run Calculate BendCount rule.
+
+	 ' iBendCount = ThisApplication.ActiveDocument.ComponentDefinition.Bends.Count
+	  iBendCount = ThisDoc.Document.ComponentDefinition.Bends.Count
+	
+	iProperties.Value("Custom", "BENDCOUNT") = iBendCount
+	
+'['Run External rule to Call LLOAD function and populate this parts iProperty
+iLogicVb.RunExternalRule("TapCheck")
+']	
+
+
+
+
+
+'['Run Calculate on the LLOAD rule.
+Call lLoad.Calculate()
+'GH added CUTA / CUTB on 8/24/2011 
+CutAbInc = 0.25
+CutAbAdd = 0.25
+
+
+iProperties.Value("Custom", "CUTA") = Ceil(Round((SheetMetal.FlatExtentsWidth+CutAbAdd),4) / CutAbInc) * CutAbInc
+iProperties.Value("Custom", "CUTB") = Ceil(Round((SheetMetal.FlatExtentsLength+CutAbAdd),4) / CutAbInc) * CutAbInc
+
+'''GH commented this out at Fred's request. We had several MIRO conference brackets using DIMA and or DIMB as parameters...
+'''and the parts get larger every time they run through cadflow, see emails for 14155.001 for examples.
+'''Turned back on 9/15/14 for confirmation as parts are fixed.
+iProperties.Value("Custom", "DIMA") = Round(SheetMetal.FlatExtentsWidth, 4)
+iProperties.Value("Custom", "DIMB") = Round(SheetMetal.FlatExtentsLength, 4)
+
+
+'Show conditional OK values, typically for testing only
+If ShowOkMsgMetalPart Then MessageBox.Show(PartName & " :  LLOAD value: " & iProperties.Value("Custom", "LLOAD"), "ShowOkMsgMetalPart from external rule")
+
+'Show conditional Error values
+If ShowErrMsg Then If iProperties.Value("Custom", "ERRORS") <> "" Then MessageBox.Show(PartName & " :  ERRORS: " & iProperties.Value("Custom", "ERRORS"), "ERRORS")
+If ShowErrMsg Then If iProperties.Value("Custom", "WARNINGS") <> "" Then MessageBox.Show(PartName & " :  WARNINGS: " & iProperties.Value("Custom", "WARNINGS"), "WARNINGS")
+']
+
+'['Force error and warning values for test append in model
+'Uncomment 3 lines below to create fake values for testing
+
+'PartNameNoExt = ThisDoc.FileName(False) 'with extension
+'iProperties.Value("Custom", "ERRORS") = "FakeMetalPartErr" & PartNameNoExt & " "
+'iProperties.Value("Custom", "WARNINGS") = "FakeMetalPartWarn" & PartNameNoExt & " "
+

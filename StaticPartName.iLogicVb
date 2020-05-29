@@ -1,0 +1,31 @@
+﻿'''Creator: Chris Kuchman
+'''Date Made: 11/1/2016
+'''Description: This external rule is for changing the part to the static version of the part name.
+'''Static parts have to have unique part names from their non-static counterparts. This rule is 
+'''mostly used to have prints generated for static assemblies contain the correct part name.
+
+Sub Main()
+STATC = iProperties.Value("Custom", "STATC")
+PartName = iProperties.Value("Project", "Part Number")
+
+If STATC = "Y" Then
+	If Right(PartName, 2) = "-S" Then
+		FinalPartName = PartName 'Part name already correct
+	Else
+		FinalPartName = PartName & "-S"
+	End If
+Else
+	If Right(PartName, 2) = "-S" Then
+		FinalPartName = Left(PartName, Len(PartName) - 2)
+	Else
+		FinalPartName = PartName 'Part name already correct
+	End If
+End If
+
+If Len(FinalPartName) > 15 Then
+	ERRORS = ERRORS & " Part Name driven over 15 characters [Not: " & FinalPartName & "]   (I:" & FileName & ")\n"
+Else
+	iProperties.Value("Project", "Part Number") = FinalPartName
+End If
+
+End Sub

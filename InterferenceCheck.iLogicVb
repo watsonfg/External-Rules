@@ -1,0 +1,57 @@
+﻿Sub Main
+Dim oAsmDoc As AssemblyDocument
+oAsmDoc = ThisApplication.ActiveDocument
+
+Dim oAsmCompDef As AssemblyComponentDefinition
+oAsmCompDef = oAsmDoc.ComponentDefinition
+
+' Add each occurrence in the assembly to the object collection.
+Dim oCheckSet As ObjectCollection
+oCheckSet= ThisApplication.TransientObjects.CreateObjectCollection
+Dim oOcc As ComponentOccurrence
+For Each oOcc In oAsmCompDef.Occurrences
+oCheckSet.Add (oOcc)
+Next
+
+' Call the AnalyzeInterference method, passing in a single
+' collection. This will cause it to compare everything against
+' everything else.
+Dim oResults As InterferenceResults
+oResults = oAsmCompDef.AnalyzeInterference(oCheckSet)
+
+' Display the results of the interference.
+MessageBox.Show(oResults.Count & " Interferences found ","iLogic")
+
+Dim oResult As InterferenceResult
+Dim iCount As Integer
+iCount = 0
+For Each oResult In oResults
+iCount = iCount + 1
+Component.Color(FullOccurrenceName(oResult.OccurrenceOne)) = "Yellow"
+Component.Color(FullOccurrenceName(oResult.OccurrenceTwo)) = "Magenta"
+MessageBox.Show("     " & FullOccurrenceName(oResult.OccurrenceOne) & "      (colored yellow)" _
+& vbLf & "interferes with " _
+& vbLf & "     " & FullOccurrenceName(oResult.OccurrenceTwo) & "      (colored magenta)" _
+& vbLf & "" _
+& vbLf & "Volume: " & Round(oResult.Volume,5) & " cm^3", _
+" Interference "& iCount)
+Component.Color(FullOccurrenceName(oResult.OccurrenceOne)) = "As Material"
+Component.Color(FullOccurrenceName(oResult.OccurrenceTwo)) = "As Material"
+
+Next
+
+End Sub
+
+' Used to display the full path of an occurrence. This is the path of the
+' occurrence within the assembly structure.
+Private Function FullOccurrenceName(Occ As ComponentOccurrence) As String
+Dim i As Integer
+For i = 1 To Occ.OccurrencePath.Count
+If i = 1 Then
+FullOccurrenceName = Occ.OccurrencePath.Item(i).Name
+Else
+FullOccurrenceName = FullOccurrenceName & "\" & Occ.OccurrencePath.Item(i).Name
+End If
+Next
+End Function
+ 

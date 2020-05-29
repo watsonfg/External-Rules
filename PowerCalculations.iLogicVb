@@ -1,0 +1,316 @@
+﻿PWR = iProperties.Value("Custom", "PWR") 
+FileName = ThisDoc.FileName(True)		 'with extension
+
+ActiveEllora = False
+
+'Descriptions
+'PartNumber - Part Number of the Power Unit
+'StringCuttopPWR - String that removes color code from PWR to decrease number of lots created for CUTTOP and assembly containting CUTTOP
+'Depth - Depth of the power unit inserted into the table
+'Width - Width of the power unit inserted into the table
+'DepthCut - Depth of the cut out in the table. Must Be to the nearest 1/10000"
+'WidthCut - Width of the cut out in the table. Must Be to the nearest 1/10000"
+
+'Please Put New Power Modules in the Correct Order A-Z Followed by 1-99999
+Select Case PWR
+'['Added for Bear Creek
+	Case "NACR22"
+		PartNumber = "???"
+		Depth = 2.986
+		Width = 6.86
+		DepthCut = 3
+		WidthCut = 6.938
+		PowerCornerRadius = .37
+		ERP_TEMPLATE = ""
+	Case "MHOB21"
+		PartNumber = "???"
+		Depth = 3.952
+		Width = 6.342
+		DepthCut = 4.15
+		WidthCut = 6.5
+		PowerCornerRadius = .001
+		ERP_TEMPLATE = ""
+	Case "MHO22"
+		PartNumber = "???"
+		Depth = 3.922
+		Width = 7.812
+		DepthCut = 4.125
+		WidthCut = 8
+		PowerCornerRadius = .001
+		ERP_TEMPLATE = ""
+	Case "MPT20"
+		PartNumber = "???"
+		Depth = 2.448
+		Width = 5.969
+		DepthCut = 2.55
+		WidthCut = 6.125
+		PowerCornerRadius = .154
+		ERP_TEMPLATE = ""
+']
+	Case "C-OLD"
+		PartNumber = "062037"	
+		Width = 13.875
+		Depth = 4.875
+		WidthCut = 14
+		DepthCut = 5	
+		PowerCornerRadius = .001 'Defaulted to .001, not updated yet to match actual
+		ActiveEllora = True
+		ERP_TEMPLATE = ""
+	Case "CC300SB"
+		PartNumber = "052270"
+		Depth = 4.32
+		Width = 4.75
+		DepthCut = 4.65
+		WidthCut = 6
+		PowerCornerRadius = .001 'Defaulted to .001, not updated yet to match actual
+		ERP_TEMPLATE = ""
+	Case "CC700"
+		PartNumber = "CUTONLY"
+		Depth = 6.1
+		Width = 7.5
+		DepthCut = 5.75
+		WidthCut = 7.125
+		PowerCornerRadius = .001 'Defaulted to .001, not updated yet to match actual
+		ERP_TEMPLATE = "NONE"
+	Case "E35PSB"
+		PartNumber = "053357"	
+		Width = 13.875
+		Depth = 4.875
+		WidthCut = 14
+		DepthCut = 5
+		PowerCornerRadius = .001 'Defaulted to .001, not updated yet to match actual
+		ActiveEllora = True
+		ERP_TEMPLATE = ""
+	Case "E53CSB"
+		PartNumber = "053186"	
+		Width = 13.875
+		Depth = 4.875
+		WidthCut = 14
+		DepthCut = 5	
+		PowerCornerRadius = .001 'Defaulted to .001, not updated yet to match actual
+		ActiveEllora = True
+		ERP_TEMPLATE = ""
+	Case "E53CSW"
+		PartNumber = "0000480"	
+		Width = 13.875
+		Depth = 4.875
+		WidthCut = 14
+		DepthCut = 5	
+		PowerCornerRadius = .001 'Defaulted to .001, not updated yet to match actual
+		ActiveEllora = True
+		ERP_TEMPLATE = ""
+	Case "E53HSB"
+		PartNumber = "053183"	
+		Width = 13.875
+		Depth = 4.875
+		WidthCut = 14
+		DepthCut = 5
+		PowerCornerRadius = .001 'Defaulted to .001, not updated yet to match actual
+		ActiveEllora = True
+		ERP_TEMPLATE = ""
+	Case "E53HSW"
+		PartNumber = "053184"
+		Width = 13.875
+		Depth = 4.875
+		WidthCut = 14
+		DepthCut = 5
+		PowerCornerRadius = .001 'Defaulted to .001, not updated yet to match actual
+		ActiveEllora = True
+		ERP_TEMPLATE = ""
+	Case "E53PSB"
+		PartNumber = "053350"	
+		Width = 13.875
+		Depth = 4.875
+		WidthCut = 14
+		DepthCut = 5
+		PowerCornerRadius = .001 'Defaulted to .001, not updated yet to match actual
+		ActiveEllora = True
+		ERP_TEMPLATE = ""
+	Case "E53PSW"
+		PartNumber = "053182"
+		Width = 13.875
+		Depth = 4.875
+		WidthCut = 14
+		DepthCut = 5
+		PowerCornerRadius = .001 'Defaulted to .001, not updated yet to match actual
+		ActiveEllora = True
+		ERP_TEMPLATE = ""
+	Case "G"
+		ERRORS = ERRORS & "G is Not a Valid Option for PWR  (I:" & FileName & ")\n"
+		PartNumber = "Part Does Not Exist"
+		Width = 2.36
+		Depth = 2.36
+		WidthCut = 2.36
+		DepthCut = 2.36
+		ERP_TEMPLATE = ""
+	Case "M21CSB"
+		PartNumber = "053185"	
+		Width = 6.4375
+		Depth = 3.9375
+		WidthCut = 6.5625
+		DepthCut = 4.0625
+		PowerCornerRadius = .001 'Defaulted to .001, not updated yet to match actual
+		ERP_TEMPLATE = ""
+	Case "M21CSW"
+		PartNumber = "0000479"	
+		Width = 6.4375
+		Depth = 3.9375
+		WidthCut = 6.5625
+		DepthCut = 4.0625
+		PowerCornerRadius = .001 'Defaulted to .001, not updated yet to match actual
+		ERP_TEMPLATE = ""
+	Case "M21HSB"
+		PartNumber = "0000477"	
+		Width = 6.4375
+		Depth = 3.9375
+		WidthCut = 6.5625
+		DepthCut = 4.0625
+		PowerCornerRadius = .001 'Defaulted to .001, not updated yet to match actual
+		ERP_TEMPLATE = ""
+	Case "M21HSW"
+		PartNumber = "0000478"	
+		Width = 6.4375
+		Depth = 3.9375
+		WidthCut = 6.5625
+		DepthCut = 4.0625
+		PowerCornerRadius = .001 'Defaulted to .001, not updated yet to match actual
+		ERP_TEMPLATE = ""
+	Case "M21PSB"
+		PartNumber = "053180"	
+		Width = 6.4375
+		Depth = 3.9375
+		WidthCut = 6.5625
+		DepthCut = 4.0625
+		PowerCornerRadius = .001 'Defaulted to .001, not updated yet to match actual
+		ERP_TEMPLATE = ""
+	Case "M21PSW"
+		PartNumber = "053181"
+		Width = 6.4375
+		Depth = 3.9375
+		WidthCut = 6.5625
+		DepthCut = 4.0625
+		PowerCornerRadius = .001 'Defaulted to .001, not updated yet to match actual
+		ERP_TEMPLATE = ""	
+	Case "N" 
+		ERRORS = ERRORS & "N is Not a Valid Option for PWR  (I:" & FileName & ")\n"
+		PartNumber = "Part Does Not Exist"
+		Width = 1
+		Depth = 1
+		WidthCut = 1
+		DepthCut = 1	
+		PowerCornerRadius = .001 'Defaulted to .001, not updated yet to match actual
+		ERP_TEMPLATE = ""
+	Case "0000257"
+		PartNumber = "0000257"
+		Width = 13.875
+		Depth = 4.875
+		WidthCut = 14
+		DepthCut = 5
+		PowerCornerRadius = .001 'Defaulted to .001, not updated yet to match actual
+		ActiveEllora = True
+		ERP_TEMPLATE = ""
+	Case "052268"
+		PartNumber = "052268"
+		Width = 7.80
+		Depth = 4.75
+		WidthCut = 7.89
+		DepthCut = 6.35
+		PowerCornerRadius = .001 'Defaulted to .001, not updated yet to match actual
+		ERP_TEMPLATE = ""
+	Case "053177"
+		PartNumber = "053177"
+		Width = 6.4375
+		Depth = 3.9375
+		WidthCut = 6.5625
+		DepthCut = 4.0625
+		PowerCornerRadius = .001 'Defaulted to .001, not updated yet to match actual
+		ERP_TEMPLATE = ""
+	Case "053178"
+		PartNumber = "053178"
+		Width = 6.4375
+		Depth = 3.9375
+		WidthCut = 6.5625
+		DepthCut = 4.0625
+		PowerCornerRadius = .001 'Defaulted to .001, not updated yet to match actual
+		ERP_TEMPLATE = ""
+	Case "053357"
+		PartNumber = "053357"
+		Width = 13.875
+		Depth = 4.875
+		WidthCut = 14
+		DepthCut = 5
+		PowerCornerRadius = .001 'Defaulted to .001, not updated yet to match actual
+		ActiveEllora = True
+		ERP_TEMPLATE = ""
+	Case "053362"
+		PartNumber = "053362"
+		Width = 13.875
+		Depth = 4.875
+		WidthCut = 14
+		DepthCut = 5
+		PowerCornerRadius = .001 'Defaulted to .001, not updated yet to match actual
+		ActiveEllora = True
+		ERP_TEMPLATE = ""
+	Case "2-2" 'Added for Seven Meeting Table	CAK 2/3/2016
+		PartNumber = "461099"
+		Width = 6.75
+		Depth = 2
+		WidthCut = 6.875
+		DepthCut = 2.325
+		PowerCornerRadius = .001 'Defaulted to .001, not updated yet to match actual
+		ActiveEllora = False
+		ERP_TEMPLATE = ""
+	Case "4-0" 'Added for Seven Meeting Table	CAK 2/3/2016
+		PartNumber = "461100"
+		Width = 6.75
+		Depth = 2
+		WidthCut = 6.875
+		DepthCut = 2.325
+		PowerCornerRadius = .001 'Defaulted to .001, not updated yet to match actual
+		ActiveEllora = False
+		ERP_TEMPLATE = ""
+	Case "4-2" 'Added for Seven Meeting Table	CAK 2/3/2016
+		PartNumber = "053148"
+		Width = 9.75
+		Depth = 2
+		WidthCut = 9.875
+		DepthCut = 2.325
+		PowerCornerRadius = .001 'Defaulted to .001, not updated yet to match actual
+		ActiveEllora = False
+		ERP_TEMPLATE = ""
+	Case "6-0" 'Added for Seven Meeting Table	CAK 2/3/2016
+		PartNumber = "461102"
+		Width = 9.75
+		Depth = 2
+		WidthCut = 9.875
+		DepthCut = 2.325
+		PowerCornerRadius = .001 'Defaulted to .001, not updated yet to match actual
+		ActiveEllora = False
+		ERP_TEMPLATE = ""
+	Case Else
+		ERRORS = ERRORS & " " & PWR & " Is Not a Valid Option for PWR. Use 2-2, 4-0, 4-2, 6-0, CC300SB, E53CSB, E53CSW, E53HSB, E53HSW, E53PSB, E53PSW, G, M21CSB, M21CSW, M21HSB, M21HSW, M21PSB, M21PSW, Or N (I:" & FileName & ")\n"
+		PartNumber = "Part Does Not Exist"
+		Width = 1
+		Depth = 1
+		WidthCut = 1
+		DepthCut = 1
+		PowerCornerRadius = .001
+		ERP_TEMPLATE = ""
+End Select
+
+StringCuttopPWR = Round(WidthCut,4) & "-" & Round(DepthCut,4)
+
+iProperties.Value("Custom", "ERP_TEMPLATE") = ERP_TEMPLATE
+iProperties.Value("Custom", "ERRORS") = ERRORS
+iProperties.Value("Project", "Part Number") = PartNumber
+Parameter.Value("Width") = Width
+Parameter.Value("Depth") = Depth
+Parameter.Value("WidthCut") = WidthCut
+Parameter.Value("DepthCut") = DepthCut
+Parameter.Value("ActiveEllora") = ActiveEllora
+Parameter.Value("StringCuttopPWR") = StringCuttopPWR
+Try
+Parameter.Value("PowerCornerRadius") = PowerCornerRadius
+Catch
+'Skip
+End Try

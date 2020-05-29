@@ -1,0 +1,916 @@
+﻿'''Creator: Daniel Sinner
+'''Date Made: 3/1/2016
+'''Revision Number: 2
+'''Rev 2: Added check to make sure correct GRM/GROMMET was used - Chris Kuchman 5/18/2016
+'''Description: This external rule is for reviewing all CUTTOP .ipt files. The ReviewFile external
+'''rule should be run which will call this seperate file. This file should only be used to provide
+'''text alerts (in shared review text tile), do not actively change the part without asking the 
+'''user if the change is desired.
+
+'Rule For ERP based on EDGTYP
+AddVbFile "WatsonFunction.vb" 'Defines external rule
+
+Sub Main()
+Try
+	'['Bring In outside stuffs
+	Dim MyFunction As New WatsonFunction()
+	'Declare And Initialize Variables.
+	Dim WARNINGS As String = ""
+	Dim PartName As String = iProperties.Value("Project", "Part Number")
+	']
+	
+	'['Set up file to write to
+	'Specifies the text file location to write to
+	TextFileReview = "c:\temp\ReviewFile.txt" 'This text file records if the rule completes and is used as the final file shown
+	TextFileChecks = "c:\temp\ReviewChecks.txt"	'This text file stores all checks made
+	TextFileIssues = "c:\temp\ReviewIssues.txt"	'This is the text file that records all issues found by the review rules
+		
+		
+		
+	'Windows File Name 
+	'True/False means with/without file extension.
+		Dim FileName As String = ThisDoc.FileName(False)
+		Dim FileNameLong As String = ThisDoc.FileName(True)
+	']
+	
+	'Establish Starting Text for LotDefiners string
+	LotDefinerString = "The following iProps are critical and should be verified:"
+	
+	
+	'['Verify Edge Related things exist and run corresponding tests based on EDGTYP
+	'Try to pull the following and make sure it works: EDGTYP, ERP_OPERATION, EDGTHK, EDGMAT, EDGFIN, EDGSEQ, EDGPRF, MATTYP
+	
+	'['Edge Type
+	'Check EDGTYP
+	HasEDGTYP = True
+	Try
+		EDGTYP = iProperties.Value("Custom", "EDGTYP")
+	Catch
+		HasEDGTYP = False
+	End Try
+	
+	'Check EDGPRF
+	HasEDGPRF = True
+	Try
+		EDGPRF = iProperties.Value("Custom", "EDGPRF")
+	Catch
+		HasEDGPRF = False
+	End Try
+	
+	'Check Combinations of Having vs. not Having EDGTYP/EDGPRF
+	'Both
+	If HasEDGTYP And HasEDGPRF
+		If Not EDGPRF like EDGTYP
+			WriteText(TextFileIssues, "Your EDGTYP (" & EDGTYP & ") is not the same as your EDGPRF (" & EDGPRF & ")!!!!!!")
+			WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+		End If
+	End If
+	
+	'EDGTYP only: This is a good thing. No checking necessary
+	
+	'EDGPRF only
+	If (Not HasEDGTYP) And HasEDGPRF
+		ProfileOnlyOkay = MessageBox.Show("Your model has EDGPRF but not EDGTYP. This is bad. Would you like to disregard and continue running the checker with EDGPRF only? ", "Missing EDGTYP!",MessageBoxButtons.YesNo, MessageBoxIcon.Question)
+		If ProfileOnlyOkay = vbYes
+			EDGTYP = EDGPRF
+			WriteText(TextFileIssues, "EDGTYP missing - using EDGPRF")
+			WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+		Else
+			Exit Sub
+		End If
+	End If
+	
+	'Neither
+	If Not (HasEDGTYP Or HasEDGPRF)
+		WriteText(TextFileIssues, "NO EDGTYP OR EDGPRF!!!!!!!!!!!!!!")
+		MessageBox.Show("Your model doesn't have EDGPRF or EDGTYP. This is horrible. Rule will now abort.", "Missing EDGTYP!")
+		Exit Sub
+	End If
+	
+	WriteText(TextFileChecks, "Cuttop - EDGTYP - Does it exists or is legacy EDGPRF used",1)
+	']
+	
+	'['Check ERP_OPERATION
+	Try
+		ERP_OPERATION = iProperties.Value("Custom", "ERP_OPERATION")
+	Catch
+		WriteText(TextFileIssues, "ERP_OPERATION is missing")
+		WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+	End Try
+	
+	'Call Function with passed EDGTYP to find best ERP
+	ExpectedERP_OP = MyFunction.GetCuttopErpByEdge(EDGTYP)
+	
+	'First check that EDGTYP is a valid choice:
+	If ExpectedERP_OP Like "ERROR*" Then
+		WriteText(TextFileIssues, ReturnedValue)
+		WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+	End If
+	
+	'Now check that ExpectedERP_OP matches actual ERP_OP
+	If Not ExpectedERP_OP like ERP_OPERATION
+		WriteText(TextFileIssues, "Your ERP_OPERATION (" & ERP_OPERATION & ") does not match what was expected (" & ExpectedERP_OP & ").")
+		WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+	End If
+	
+	WriteText(TextFileChecks, "Cuttop - ERP_OPERATION - Is within the excepted range for EDGTYP", 1)
+	']
+	
+	'['Check EDGTHK
+	'Verify iProp
+	HasEDGTHKiProp = True
+	Try
+		EDGTHKiProp = Round(CDbl(iProperties.Value("Custom", "EDGTHK")),3)
+	Catch
+		HasEDGTHKiProp = False
+	End Try
+	
+	'Verify Param and equal to iProp
+	MissingEdgeParamCount = 0
+	Try
+		EDGTHKParam = Round(Parameter("EDGTHK"),3)
+	Catch
+		MissingEdgeParamCount = MissingEdgeParamCount + 1
+	End Try
+	Try
+		EDGTHKParam = Round(Parameter("EdgThk"),3)
+	Catch
+		MissingEdgeParamCount = MissingEdgeParamCount + 1
+	End Try
+	Try
+		EDGTHKParam = Round(Parameter("Edgthk"),3)
+	Catch
+		MissingEdgeParamCount = MissingEdgeParamCount + 1
+	End Try
+
+	If MissingEdgeParamCount > 2.5 Then
+		HasEDGTHKParam = False
+	Else
+		HasEDGTHKParam = True
+	End If
+
+	'Check Combinations of Having vs. not Having EDGTHK iProp/Param
+	'Both
+	If HasEDGTHKiProp And HasEDGTHKParam
+		If EDGTHKiProp <> EDGTHKParam Then WriteText(TextFileIssues, "EDGTHK parameter (" & EDGTHKParam & ") isn't equal to EDGTHK iProperty (" & EDGTHKiProp & "). The parameter will be used going forward.")
+	End If
+	
+	'HasEDGTHKParam only: This is okay and EDGTHKParam will be used going forward
+	If (Not HasEDGTHKiProp) And HasEDGTHKParam
+		WriteText(TextFileIssues, "'EDGTHK' iProp could not be found. This is okay because PCM overwrites this anyway.")
+	End If
+
+	'HasEDGTHKiProp only: This is okay, EDGTHKParam will be used going forward
+	If (Not HasEDGTHKParam) And HasEDGTHKiProp
+		EDGTHKParam = EDGTHKiProp
+		WriteText(TextFileIssues, "Edge Thickness parameter could not be found. Not critical, but could aid in modelling")
+	End If
+	
+	'Neither	'This is semi-okay. Will assign EDGTHK based on EDGTYP
+	If Not (HasEDGTHKParam Or HasEDGTHKiProp)
+		Select Case EDGTYP
+		Case "AR", "AW", "AY", "B", "BF", "BH", "DB", "DC", "DD", "DR", "DT", "F", "PE", "PR", "PS", "WE", "WR", "WS"
+			WriteText(TextFileIssues,"Warning: Your EDGTYP has not been added to the EDGTHK checker as it has likely been discontinued.")
+		Case "M", "N", "S", "T", "U", "K", "V", "W"
+			EDGTHKParam = 0.0001
+		Case "C", "X"
+			EDGTHKParam = 0.125
+		Case "HG", "Z"
+			EDGTHKParam = 0.118
+		Case "Q", "J"	'Typically 0.059 (1.5mm)
+			EDGTHKParam = 0.059
+		Case Else		'Just picking a defaul here to avoid crashing later checks. Other errors should be thrown if an EDGTYP hits this.
+			EDGTHKParam = 0.059
+		End Select
+		'Report Error
+		WriteText(TextFileIssues, "Neither Edge Thickness (EDGTHK) iProperty nor Parameter could not be found. Not critical, but could aid in modelling")
+	End If
+
+	'Verify that EDGTHK is correct
+	Select Case EDGTYP
+		Case "AR", "AW", "AY", "B", "BF", "BH", "DB", "DC", "DD", "DR", "DT", "F", "PE", "PR", "PS", "WE", "WR", "WS"
+			WriteText(TextFileIssues,"Warning: Your EDGTYP has not been added to the EDGTHK checker as it has likely been discontinued.")
+		Case "M", "N", "S", "T", "U", "K", "V", "W"	'Typically 0.0001
+			If EDGTHKParam > 0.001
+				WriteText(TextFileIssues,"Your EDGTHK of " & EDGTHKParam & " is not the expected value of 0.0001 based on your EDGTYP: " & EDGTYP & ".")
+				WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+			End If
+		Case "C", "HG", "X", "Z"	'Typically 0.125 for C and X and 0.118 (3mm) for HG and Z
+			If (EDGTHKParam > 0.125 Or EDGTHKParam < 0.118)
+				WriteText(TextFileIssues,"Your EDGTHK of " & EDGTHKParam & " is not the expected value based on your EDGTYP: " & EDGTYP & ".")
+				WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+			End If
+		Case "Q", "J"	'Typically 0.059 (1.5mm)
+			If (EDGTHKParam > 0.06 Or EDGTHKParam < 0.059)
+				WriteText(TextFileIssues,"Your EDGTHK of " & EDGTHKParam & " is not the expected value based on your EDGTYP: " & EDGTYP & ".")
+				WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+			End If
+		Case Else
+			' return a value with ERROR prefix.
+			WriteText(TextFileIssues," '" & EDGTYP & "' is NOT a Valid Edge Type.")
+			WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+	End Select
+	
+	WriteText(TextFileChecks, "Cuttop - EDGTHK - Is within the excepted range for EDGTYP", 1)
+	']
+	
+	'['Check EDGMAT
+	Try
+		EDGMAT = iProperties.Value("Custom", "EDGMAT")
+		WriteText(TextFileIssues,"Not a problem, but you're using the EDGMAT iProperty which is irrelevant since PCM writes to this.")
+	Catch
+		'This is fine since EDGMAT is not important at the inventor level
+	End Try
+	']
+	
+	'['Check EDGFIN
+	Try
+		EDGFIN = iProperties.Value("Custom", "EDGFIN")
+	Catch
+		WriteText(TextFileIssues,"EDGFIN does not exist.")
+		WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+	End Try
+	
+	WriteText(TextFileChecks, "Cuttop - EDGFIN - Does it exist", 1)
+	']
+	
+	'['Check EDGSEQ
+	EDGSEQexists = True
+	Try
+		EDGSEQ = iProperties.Value("Custom", "EDGSEQ")
+		Select Case EDGSEQ
+			Case "1A", "1A1B", "1A1BC", "1A2B", "1A2BC", "1AC", "1B", "1B1A", "1B1AC", "1B2A", "1B2AC", "1BC", "2A", "2A1B", "2A1BC", "2A2B", "2A2BC", "2AC", "2B", "2B1A", "2B1AC", "2B2A", "2B2AC", "2BC", "ALL"
+				'WriteText(TextFileIssues,"EDGSEQ matches choices")
+				LotDefinerString = LotDefinerString & vbNewLine & " EDGSEQ = " & EDGSEQ
+			Case Else
+				WriteText(TextFileIssues,"EDGSEQ (" & EDGSEQ & ") is not a valid choice.")
+				WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+		End Select
+	Catch
+		EDGSEQexists = False
+		WriteText(TextFileIssues,"'EDGSEQ' does not exist. (Only used for pricing).")
+		WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+	End Try
+	
+	WriteText(TextFileChecks, "Cuttop - EDGSEQ - Is a valid choice", 1)
+	']
+	
+	'['Check MATTYP
+	Try
+		MATTYP = iProperties.Value("Custom", "MATTYP")
+		Select Case EDGTYP
+		Case "AR", "AW", "AY", "B", "BF", "BH", "DB", "DC", "DD", "DR", "DT", "F", "PE", "PR", "PS", "WE", "WR", "WS", "X"
+			WriteText(TextFileIssues,"Warning: Your EDGTYP has not been added to the MATTYP checker as it has likely been discontinued.")
+			WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+		Case "M"	'3/4" MDF for MCC or 1-1/8 MDF for regular desks like MDREC
+			YesIsMiroConf = MessageBox.Show("Is this a Miro Conference-esque CUTTOP?", "MCC TOP?",MessageBoxButtons.YesNo)
+			If YesIsMiroConf = vbYes
+				If Not MATTYP Like "6MP[12]"
+					WriteText(TextFileIssues,"MATTYP of " & MATTYP & " does not correspond with expected MATTYP of 6MP_. (EDGTYP = " & EDGTYP & " & MCC Top).")
+					WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+				End If
+			Else
+				If Not MATTYP Like "9MP[12]"
+					WriteText(TextFileIssues,"MATTYP of " & MATTYP & " does not correspond with expected MATTYP of 9MP_. (EDGTYP = " & EDGTYP & " & M-Desk Top).")
+					WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+				End If
+			End If
+		Case "V", "W"	'Plywood
+			If Not MATTYP Like "8EB[12]"
+				WriteText(TextFileIssues,"MATTYP of " & MATTYP & " does not correspond with expected MATTYP based on your EDGTYP, '" & EDGTYP & "'.")
+				WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+			End If
+		Case "J", "N", "S", "T", "U", "K"	'1-1/8 MDF or plywood
+			Select Case MATTYP
+			Case "9MP1", "9MP2", "8EB", "8DB", "8EB2", "8DB2"	
+				'Matches Expected
+			Case Else
+				WriteText(TextFileIssues,"MATTYP of " & MATTYP & " does not correspond with expected MATTYP based on your EDGTYP, '" & EDGTYP & "'.")
+				WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+			End Select
+		Case "C", "Z", "Q", "Q", "J"	'Particleboard
+			Select Case MATTYP
+			Case "9P1", "9P2"
+				'Matches Expected
+			Case Else
+				WriteText(TextFileIssues,"MATTYP of " & MATTYP & " does not correspond with expected MATTYP based on your EDGTYP, '" & EDGTYP & "'.")
+				WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+			End Select
+		Case "HG"	'Mercury with Builddown
+			If Not MATTYP like "5P1"
+				WriteText(TextFileIssues,"MATTYP of " & MATTYP & " does not correspond with expected MATTYP of 5P1. (EDGTYP = " & EDGTYP & ").")
+				WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+			End If
+		Case Else
+			' return a value with ERROR prefix.
+		WriteText(TextFileIssues," '" & EDGTYP & "' is NOT a Valid Edge Type.")
+		WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+		End Select
+	Catch
+		WriteText(TextFileIssues,"MATTYP iProperty could not be found.")
+		WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+	End Try
+	
+	WriteText(TextFileChecks, "Cuttop - MATTYP - Does the value make sense with EDGTYP", 1)
+	']
+	']
+	
+	'['Verify Sizing Related Issues
+	'['DIMA and DIMB
+	Dim DIMA As Double = -5
+	Dim DIMB As Double = -5
+	
+	'Check If DIMA and DIMB are resonable
+	'Calculate expected DIMA and DIMB
+	If YesIsMiroConf = vbYes	'Miro Conference Measures backwards
+		MeasuredDimA = (Measure.ExtentsLength) - 2*EDGTHKParam
+		MeasuredDimB = (Measure.ExtentsWidth) - 2*EDGTHKParam
+	Else
+		MeasuredDimA = (Measure.ExtentsWidth) - 2*EDGTHKParam
+		MeasuredDimB = (Measure.ExtentsLength) - 2*EDGTHKParam
+	End If
+
+	'Retrieve DIMA and DIMB
+	Try
+		DIMA = iProperties.Value("Custom", "DIMA")
+		DIMB = iProperties.Value("Custom", "DIMB")
+	Catch
+		MessageBox.Show("Could Not Pull DIMA and/or DIMB!!!! Rule Will now abort.", "Title")
+		Exit Sub
+	End Try
+	
+	'Check if DIMA and DIMB are within tolerance of measured values
+	'Tolerance
+	Dim DIM_Tolerance As Double = 0.1
+	
+	'Check If DIMA and DIMB are greater than zero
+	If DIMA <= 0 Then
+		WriteText(TextFileIssues," DIMA value is less than or equal to zero. ")
+		WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+	End If
+	
+	If DIMB <= 0 Then
+		WriteText(TextFileIssues," DIMB Value Is Less Than Or Equal To Zero. ")
+		WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+	End If
+	
+	If DIMA >= (MeasuredDimA + DIM_Tolerance) OrElse DIMA <= (MeasuredDimA - DIM_Tolerance) Then
+		WriteText(TextFileIssues,"Check DIMA Value (Measured = " & MeasuredDimA & ", iProperty = " & DIMA & "). " )
+		WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+	End If
+	
+	If DIMB >= (MeasuredDimB + DIM_Tolerance) OrElse DIMB <= (MeasuredDimB - DIM_Tolerance) Then
+		WriteText(TextFileIssues, "Check DIMB Value (Measured = " & MeasuredDimB & ", iProperty = " & DIMB & "). ")
+		WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+	End If
+	
+	WriteText(TextFileChecks, "Cuttop - DIMA/DIMB - Is greater than zero and is close to the measured values", 1)
+	']
+	
+	'['Check if DIMA/DIMB are too large for a sheet
+	If DIMA > 60 Or DIMB > 144
+		FlippedGrainDirection = MessageBox.Show("Your DIMA/DIMB combination require that the grain direction be changed. Have you done so?", "Flipped Grain Direction",MessageBoxButtons.YesNo, MessageBoxIcon.Question)
+		If FlippedGrainDirection = vbYes
+			If DIMB > 60 Or DIMA > 144 Then 
+				WriteText(TextFileIssues,"Even with your grain direction flipped, it appears that your part is too large for a sheet (60'' x 144'')")
+				WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+			End If
+		Else If FlippedGrainDirection = vbNo
+			WriteText(TextFileIssues,"DIMA (" & DIMA & ") and/or DIMB (" & DIMB & ") are too large for a sheet (Max 60x144).")
+			WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+			
+		Else
+			WriteText(TextFileIssues,"DIMA (" & DIMA & ") and/or DIMB (" & DIMB & ") might be too large for a sheet (Max 60x144).")
+			WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+		End If
+	End If
+	
+	WriteText(TextFileChecks, "Cuttop - DIMA/DIMB - Sizing fits on our sheets", 1)	
+	']
+	
+	'['Check CUTA/CUTB
+	ExpectedCUTA = Ceil(Round(DIMA + 0.25,4)*4)/4
+	ExpectedCUTB = Ceil(Round(DIMB + 0.25,4)*4)/4
+	CUTdimTolerance = 0.1
+	Try
+		CUTA = iProperties.Value("Custom", "CUTA")
+		CUTB = iProperties.Value("Custom", "CUTB")
+		If CUTA < ExpectedCUTA-CUTdimTolerance Or CUTA > ExpectedCUTA+CUTdimTolerance
+			WriteText(TextFileIssues,"CUTA (" & CUTA & ") does not match expected value (" & ExpectedCUTA & ") based on DIMA (" & DIMA & ").")
+			WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+		End If
+		
+		If CUTB < ExpectedCUTB-CUTdimTolerance Or CUTB > ExpectedCUTB+CUTdimTolerance
+			WriteText(TextFileIssues,"CUTB (" & CUTB & ") does not match expected value (" & ExpectedCUTB & ") based on DIMB (" & DIMB & ").")
+			WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+		End If
+	Catch
+		WriteText(TextFileIssues,"CUTA and/or CUTB could not be found.")
+		WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+	End Try
+	
+	WriteText(TextFileChecks, "Cuttop - CUTA/CUTB - Values are within expected range based on DIMA/DIMB", 1)
+	']
+	
+	'['Check NETDEPTH/NETWIDTH
+	'Check NETDEPTH
+	DEPTHisDIMB = 1		'Setting Default assumption	(using numbers instead of True/False Since multiple paths)
+	NETDIMtolerance = 0.25
+	Try
+		NETDEPTH = iProperties.Value("Custom", "NETDEPTH")
+		If NETDEPTH > DIMA+EDGTHKParam-NETDIMtolerance And NETDEPTH < DIMA+EDGTHKParam+NETDIMtolerance
+			DEPTHisDIMB = 2
+		ElseIf NETDEPTH > DIMB+EDGTHKParam-NETDIMtolerance And NETDEPTH < DIMB+EDGTHKParam+NETDIMtolerance
+			DEPTHisDIMB = 0
+		Else
+			WriteText(TextFileIssues,"NETDEPTH (" & NETDEPTH & ") doesn't match DIMA (" & DIMA & ").")	'NETDEPTH should match DIMA, so not listing DIMB
+			WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+		End If
+	Catch
+		'No real problem if NETDEPTH doesn't exist for CUTTOP
+	End Try
+	
+	'Check NETDEPTH
+	Try
+		NETWIDTH = iProperties.Value("Custom", "NETWIDTH")
+		If DEPTHisDIMB > 0.5
+			If NETWIDTH > DIMB+EDGTHKParam-NETDIMtolerance And NETWIDTH < DIMB+EDGTHKParam+NETDIMtolerance
+				'NETWIDTH matches DIMB
+			Else
+				If DEPTHisDIMB = 2 Then WriteText(TextFileIssues,"NETWIDTH (" & NETWIDTH & ") doesn't match DIMB (" & DIMB & ").")
+				DEPTHisDIMB = DEPTHisDIMB - 1	'Setting in order to run check: NETWIDTH = DIMA?
+			End If
+		End If
+		
+		If DEPTHisDIMB < 0.5
+			If NETWIDTH > DIMA+EDGTHKParam-NETDIMtolerance And NETWIDTH < DIMA+EDGTHKParam+NETDIMtolerance
+				'NETWIDTH matches DIMA
+			Else
+				WriteText(TextFileIssues,"NETDEPTH/NETWIDTH pair (" & NETDEPTH &"/"& NETWIDTH & ") doesn't match your DIMA/DIMB (" & DIMA &"/"& DIMB & ") and edge thickness (" & EDGTHKParam & ").")	'changed to return DIMA/DIMB values -CLM 3/18/2016
+				WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+			End If
+		End If
+	Catch
+		'No real problem if NETWIDTH doesn't exist for CUTTOP
+	End Try
+	
+	WriteText(TextFileChecks, "Cuttop - NETs - Do they match DIMA/DIMB", 1)
+	']
+	
+	'['Check SQFT
+	ExpectedSQFT = DIMA*DIMB/144
+	AllowSQFTdif = 0.1
+	
+	Try
+		SQFT = iProperties.Value("Custom", "SQFT")
+		If SQFT < ExpectedSQFT*(1-AllowSQFTdif) Or SQFT > ExpectedSQFT*(1+AllowSQFTdif)
+			WriteText(TextFileIssues,"SQFT (" & SQFT & ") is not within allowable range of expected (" & ExpectedSQFT & ") based on DIMA/DIMB.")
+			WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+		End If
+	Catch
+		WriteText(TextFileIssues,"SQFT could not be found.")
+		WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+	End Try
+	
+	WriteText(TextFileChecks, "Cuttop - SQFT - Within expected range based on DIMA/DIMB", 1)
+	']
+
+	'['EDGLFT
+	'Check if EDGLFT is needed
+	If EDGTYP like "[UVPWKMNS]"
+		EdgLftNeeded = False
+	Else
+		EdgLftNeeded = True
+	End If
+	
+	'Try to find EDGLFT if needed and error if it has a value when it isn't needed
+	Try
+		EDGLFT = iProperties.Value("Custom", "EDGLFT")
+		
+		'Set defaults for calculation
+		EdgLftMult_A = 0
+		EdgLftMult_B = 0
+		HasContour = False
+	
+		'Main meat of the numberical checker
+		If EdgLftNeeded 
+			If EDGSEQexists
+				'Figure out how many of each edge is needed
+				If EDGSEQ like "*1A*" Then	EdgLftMult_A = 1
+				If EDGSEQ like "*2A*" Then	EdgLftMult_A = 2
+				If EDGSEQ like "*1B*" Then	EdgLftMult_B = 1
+				If EDGSEQ like "*2B*" Then	EdgLftMult_B = 2
+				If EDGSEQ like "*C*" Then	HasContour = True
+				If EDGSEQ like "ALL" 
+					EdgLftMult_A = 2
+					EdgLftMult_B = 2
+					HasContour = True
+				End If
+		
+				'Calculate min/max expected based on contour or not
+				If HasContour
+					MinExpectedEdgLft = (DIMA*EdgLftMult_A + DIMB*EdgLftMult_B + Sqrt(DIMA*DIMA+DIMB*DIMB)) * .65		'#AxA + #BxB + 1xHypotenuse w/ 35% error
+					MaxExpectedEdgLft = (DIMA*EdgLftMult_A + DIMB*EdgLftMult_B + Sqrt(DIMA*DIMA+DIMB*DIMB)) * 1		'#AxA + #BxB + 1xHypotenuse (multiplier of 1 since hypotenuse is a lot of banding)
+				Else	
+					MinExpectedEdgLft = (DIMA*EdgLftMult_A + DIMB*EdgLftMult_B) * .9				'#AxA + #BxB w/ 10% error
+					MaxExpectedEdgLft = (DIMA*EdgLftMult_A + DIMB*EdgLftMult_B) * 1.1				'#AxA + #BxB w/ 10% error
+				End If
+
+				'Run checks (expecteds are /12 to convert inches to feet)
+				If EDGLFT < MinExpectedEdgLft/12 Then WriteText(TextFileIssues,"Your EDGLFT (" & EDGLFT & ")is much less than expected (based on DIMA, DIMB, and EDGSEQ)")
+				If EDGLFT > MaxExpectedEdgLft/12 Then WriteText(TextFileIssues,"Your EDGLFT (" & EDGLFT & ")is much more than expected (based on DIMA, DIMB, and EDGSEQ)")
+			Else
+				WriteText(TextFileIssues,"Could not calculate expected EDGLFT due to lack of EDGSEQ.")
+			End If
+		Else	'Verify that there's no EDGLFT if there shouldn't be
+			If EDGLFT = 0 
+				'Acceptable!
+			ElseIf EDGLFT = ""
+				'Yay! This one is also okay!
+			Else
+				WriteText(TextFileIssues,"EDGLFT should be 0 or blank as it does not appear to be needed")
+			End If
+		End If
+	Catch
+		If EdgLftNeeded Then	WriteText(TextFileIssues,"EDGLFT could not be found and looks to be needed.")
+	End Try
+	
+	WriteText(TextFileChecks, "CUTTOP - EDGLFT - If needed (based on EDGTYP), within expected range based on DIMA/DIMB and EDGSEQ", 1)
+']
+
+	'['Check RLOAD
+	'Retrieve RLOAD
+	MaxRLOAD = 3*(2*(DIMA+DIMB))/25		'Triple the perimeter (accounts for many features) with the slowerst feedrate (25)
+	MinRLOAD = (2*(DIMA+DIMB))/80		'Perimeter only with the fastest feedrate (80)
+	
+	Try
+		RLOAD = iProperties.Value("Custom", "RLOAD")
+		If RLOAD < MinRLOAD Or RLOAD > MaxRLOAD
+			WriteText(TextFileIssues,"RLOAD (" & RLOAD & ") seems to be outside of expected range based on DIMA/DIMB.")
+			WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+		End If
+	Catch
+		WriteText(TextFileIssues,"RLOAD could not be found.")
+		WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+	End Try
+	
+	WriteText(TextFileChecks, "Cuttop - RLOAD - Within expected range based on DIMA/DIMB", 1)
+	']
+
+	'['Check GRM
+	Try
+		GROMMET = iProperties.Value("Custom", "GROMMET")
+
+		WriteText(TextFileIssues,"GROMMET is not lot defining in CUTTOPs, use GRM instead.")
+		WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+	Catch
+		'Good, this is just making sure that the right iProperty name is being used.
+	End Try
+	
+	WriteText(TextFileChecks,"Cuttop - GRM - Common non-lot defining term (GROMMET) was not used", 1)
+	']
+	
+	'['Check and display lot defining iProps with dimensional stuffs
+	'Check DIMC
+	Try
+		DIMC = iProperties.Value("Custom", "DIMC")
+		LotDefinerString = LotDefinerString & vbNewLine & " DIMC = " & DIMC
+	Catch
+		'No problem if DIMC doesn't exist
+	End Try
+	
+	'Check DIMD
+	Try
+		DIMD = iProperties.Value("Custom", "DIMD")
+		LotDefinerString = LotDefinerString & vbNewLine & " DIMD = " & DIMD
+	Catch
+		'No problem if DIMC doesn't exist
+	End Try
+	
+	'Check DIAMETER
+	Try
+		DIAMETER = iProperties.Value("Custom", "DIAMETER")
+		LotDefinerString = LotDefinerString & vbNewLine & " DIAMETER = " & DIAMETER
+	Catch
+		'No problem if DIMC doesn't exist
+	End Try
+	
+	
+	'['Check and display lot defining iProps with non-dimensional stuffs
+		'Check DIAMETER
+	Try
+		TOPOPT1 = iProperties.Value("Custom", "TOPOPT1")
+		LotDefinerString = LotDefinerString & vbNewLine & " TOPOPT1 = " & TOPOPT1
+	Catch
+		LotDefinerString = LotDefinerString & vbNewLine & " TOPOPT1 = [NOT USED IN THE PART]"
+	End Try
+
+	Try
+		TOPOPT2 = iProperties.Value("Custom", "TOPOPT2")
+		LotDefinerString = LotDefinerString & vbNewLine & " TOPOPT2 = " & TOPOPT2
+	Catch
+		LotDefinerString = LotDefinerString & vbNewLine & " TOPOPT2 = [NOT USED IN THE PART]"
+	End Try
+
+	Try
+		TOPOPT3 = iProperties.Value("Custom", "TOPOPT3")
+		LotDefinerString = LotDefinerString & vbNewLine & " TOPOPT3 = " & TOPOPT3
+	Catch
+		LotDefinerString = LotDefinerString & vbNewLine & " TOPOPT3 = [NOT USED IN THE PART]"
+	End Try
+
+	Try
+		TOPOPT4 = iProperties.Value("Custom", "TOPOPT4")
+		LotDefinerString = LotDefinerString & vbNewLine & " TOPOPT4 = " & TOPOPT4
+	Catch
+		LotDefinerString = LotDefinerString & vbNewLine & " TOPOPT4 = [NOT USED IN THE PART]"
+	End Try
+	']
+	']
+	
+	''['EDGFIN
+	'Dim EDGFIN As String = "BAD"
+	'
+	'If EDGSEQ = "NONE" Then
+	'	Try
+	'		EDGFIN = iProperties.Value("Custom", "EDGFIN")
+	'		If EDGFIN <> "" Or EDGFIN = "BAD" Then
+	'			ERRORS = ERRORS & " Edge Finish Should Be Blank. " & vbNewLine & vbNewLine
+	'		End If
+	'	Catch
+	'		'No edge sequence so no edgfin required.
+	'	End Try
+	'Else
+	'	Try
+	'		EDGFIN = iProperties.Value("Custom", "EDGFIN")
+	'	Catch
+	'		ERRORS = ERRORS & " Could Not Pull EDGFIN. " & vbNewLine & vbNewLine
+	'		MessageBox.Show(ERRORS, "ERRORS")
+	'		Exit Sub	
+	'	End Try
+	'	
+	'	If EDGFIN = "" Or EDGFIN = "BAD" Then
+	'		ERRORS = ERRORS & " EDGFIN Must Be A Valid Finish. " & vbNewLine & vbNewLine	
+	'	End If
+	'End If
+	'']
+	'
+	''['EDGLFT
+	'Dim EDGLFT As Double = -5
+	'Dim EdgFall As Double = 2
+	'Dim EdgLftCutA As Double = 0
+	'Dim EdgLftCutB As Double = 0
+	'Dim EdgLftCutAMulitplyer As Double = 0
+	'Dim EdgLftCutBMulitplyer As Double = 0
+	'Dim EdgLftCutTolerance As Double = 3
+	'
+	'If EDGSEQ = "NONE" Then
+	'	Try
+	'		EDGLFT = iProperties.Value("Custom", "EDGLFT")
+	'		If EDGLFT <> 0 Then
+	'			ERRORS = ERRORS & " EDGLFT Must Be Zero For EDGSEQ of NONE. " & vbNewLine & vbNewLine				
+	'		End If
+	'	Catch
+	'		'Don't Need EDGLFT if No EDGSEQ
+	'	End Try
+	'Else
+	'	Try
+	'		EDGLFT = iProperties.Value("Custom", "EDGLFT")
+	'	Catch
+	'		ERRORS = ERRORS & " Could Not Pull EDGLFT. " & vbNewLine & vbNewLine
+	'	End Try
+	'	
+	'	'Calculate CUTA EDGLFT
+	'	If EDGSEQ LIKE "*1A*" Then
+	'		EdgLftCutAMulitplyer = 1
+	'	ElseIf EDGSEQ LIKE "*2A*"
+	'		EdgLftCutAMulitplyer = 2
+	'	Else
+	'		EdgLftCutAMulitplyer = 0
+	'	End If
+	'	
+	'	EdgLftCutA = EdgLftCutAMulitplyer * (GetDimA + EdgFall)
+	'	EdgLftCutATol = EdgLftCutAMulitplyer * EdgLftCutTolerance
+	'	
+	'	'Calculate CUTB EDGLFT
+	'	If EDGSEQ LIKE "*1B*" Then
+	'		EdgLftCutBMulitplyer = 1
+	'	ElseIf EDGSEQ LIKE "*2B*"
+	'		EdgLftCutBMulitplyer = 2
+	'	Else
+	'		EdgLftCutBMulitplyer = 0
+	'	End If	
+	'	
+	'	EdgLftCutB = EdgLftCutBMulitplyer * (GetDimB + EdgFall)
+	'	EdgLftCutBTol = EdgLftCutBMulitplyer * EdgLftCutTolerance
+	'	
+	'	'Calculate Total EDGLFT
+	'	EdgLftTotal = (EdgLftCutA + EdgLftCutB) / 12
+	'	
+	'	'Calculate Total Tolerance
+	'	EdgLftCutTolerance = (EdgLftCutBTol + EdgLftCutATol) / 12
+	'	
+	'	'Check if EDGLFT is within tolerance of measured values	
+	'	If EdgLftTotal >= (EDGLFT + EdgLftCutTolerance) OrElse EdgLftTotal <= (EDGLFT - EdgLftCutTolerance) Then
+	'		EdgLftTotalMessageBox = Round(EdgLftTotal, 3)
+	'		ERRORS = ERRORS & " Check EDGLFT Value. (Rule Calculated: " & EdgLftTotalMessageBox & " iProperty Value: " & EDGLFT & "). " & vbNewLine & vbNewLine
+	' 	End If
+	'	
+	'End If
+	
+	'
+	''['FLIP
+	'Dim FLIP As String = ""
+	'
+	'Try 
+	'	FLIP = iProperties.Value("Custom", "FLIP")
+	'Catch
+	'	WARNINGS = WARNINGS & " Missing FLIP iProperty. " & vbNewLine & vbNewLine
+	'End Try
+	'
+	'FLIP_RESPONSE = MessageBox.Show("Does This Panel Require a Flip On The Router?" & vbLf, "FLIP:",MessageBoxButtons.YesNo)
+	'
+	'If FLIP_RESPONSE = vbYes AndAlso FLIP <> Y Then
+	'	ERRORS = ERRORS & " Please Check Your FLIP iProperty " & vbNewLine & vbNewLine
+	'ElseIf FLIP_RESPONSE = vbNo AndAlso (FLIP <> "N" OrElse FLIP <> "") Then
+	'	ERRORS = ERRORS & " Please Check Your FLIP iProperty " & vbNewLine & vbNewLine
+	'End If
+	'']
+	'
+	''['ERP_OPERATION
+	'Dim ERP_OPERATION As Double = 0
+	'Dim ERP_OPERATION_String As String = ""
+	'
+	'Try
+	'	ERP_OPERATION = iProperties.Value("Custom", "ERP_OPERATION")
+	'Catch
+	'	ERRORS = ERRORS & " Could Not Pull ERP_OPERATION. " & vbNewLine & vbNewLine
+	'	MessageBox.Show(ERRORS, "ERRORS")
+	'	Exit Sub
+	'End Try
+	'
+	'ERP_Allowed = {{441, "Panel Requiring a Flip Program"}, {460, "Panel Pocketed Before Banding Or Pocketed With No Banding"}, {500 , "Panel With 1.5mm or 3.0mm Banding"}, {600, "Face or Drawer Bottom With No Banding Going To Comp"}, {620, "Panel With No Banding Going To Comp"}, {700, "Panel Not Banded At 500 But Going To Finish"}, {750, "Panel Going to Fabric Assembly"}}
+	'
+	'If FLIP = "Y" AndAlso ERP_OPERATION <> 441 Then
+	'	ERRORS = ERRORS & " ERP_OPERATION Must Be 441 For a FLIP or Y. [NOT: " & ERP_OPERATION & "]" & vbNewLine & vbNewLine
+	'Else
+	'	For index = 0 To ERP_Allowed.GetUpperBound(0)
+	'
+	'		If ERP_OPERATION = ERP_Allowed(index, 0) Then
+	'			If index = 0 Then
+	'				ERP_OPERATION_String = "Is This a " & ERP_Allowed(index, 1) & " (" & ERP_Allowed(index, 0) & ")?"
+	'			Else
+	'				ERP_OPERATION_String = "Is This a " & ERP_Allowed(index, 1) & " (" & ERP_Allowed(index, 0) & ") And Not One Of The Following? " & vbNewLine & vbNewLine & ERP_OPERATION_String
+	'			End If
+	'			Exit For
+	'		End If
+	'
+	'		If index = 0 Then
+	'			ERP_OPERATION_String = ERP_OPERATION_String & ERP_Allowed(index, 1) & " (" & ERP_Allowed(index, 0) & ")"
+	'		Else
+	'			ERP_OPERATION_String = ERP_OPERATION_String & vbNewLine & ERP_Allowed(index, 1) & " (" & ERP_Allowed(index, 0) & ")"
+	'		End If
+	'
+	'	Next
+	'
+	'	ERP_RESPONSE = MessageBox.Show(ERP_OPERATION_String & vbLf, "Current Routing:",MessageBoxButtons.YesNo)
+	'
+	'	If ERP_RESPONSE = vbNo Then
+	'		ERRORS = ERRORS & " Please Update The ERP_OPERATION. " & vbNewLine & vbNewLine
+	'	End If
+	'End If
+	'']
+	'
+	
+	'
+	''['MATFIN
+	'Dim MATFIN As String = ""
+	'
+	'Try
+	'	MATFIN = iProperties.Value("Custom", "MATFIN")
+	'Catch
+	'	ERRORS = ERRORS & " Could Not Pull MATFIN. " & vbNewLine & vbNewLine
+	'	MessageBox.Show(ERRORS, "ERRORS")
+	'	Exit Sub
+	'End Try
+	'
+	'If MATFIN = "" Then
+	'	ERRORS = ERRORS & " Not a Valid MATFIN. " & vbNewLine & vbNewLine	
+	'End If
+	'']
+	
+	''['MATTHK
+	'Dim MATTHK As Double = 0
+	'Dim FIVEP2MATTHK As Double = 0.75
+	'Dim SIXM2MATTHK As Double = 0.75
+	'Dim NINEM2MATTHK As Double = 1.125
+	'
+	'Try
+	'	MATTHK = iProperties.Value("Custom", "MATTHK")
+	'Catch
+	'	WARNINGS = WARNINGS & " Could Not Pull MATTHK. " & vbNewLine & vbNewLine
+	'	MessageBox.Show(ERRORS, "ERRORS")
+	'	Exit Sub
+	'End Try	
+	'
+	'Select Case MATTYP
+	'	Case "5P2", "6M2" 
+	'		If MATTHK <> FIVEP2MATTHK Then
+	'			WARNINGS = WARNINGS & " MATTHK Should Be " & FIVEP2MATTHK & " For a MATTYP of 5P2 or 6M2. " & vbNewLine & vbNewLine			
+	'		End If
+	'	Case "9M2"
+	'		If MATTHK <> NINEM2MATTHK Then
+	'			WARNINGS = WARNINGS & " MATTHK Should Be " & NINEM2MATTHK & " For a MATTYP of 9M2. " & vbNewLine & vbNewLine		
+	'		End If	
+	'	Case Else
+	'		ERRORS = ERRORS & " Can't Determine Required MATTHK for MATTYP. " & vbNewLine & vbNewLine	
+	'End Select
+	'']
+	
+	
+	''Check If EXPORT Matches iProperty
+	'If ActivePANELOPT1 Then
+	'	PANELOPT1_RESPONSE = MessageBox.Show("Is The PANELOPT1 Value You Want To Use: " & iProperties.Value("Custom", "PANELOPT1") & "?" & vbLf, "Current PANELOPT1:",MessageBoxButtons.YesNo)
+	'	If PANELOPT1_RESPONSE = vbNo Then
+	'		ERRORS = ERRORS & " You Should Change PANELOPT1. " & vbNewLine & vbNewLine	
+	'	End If
+	'End If
+	'']
+	''['EXPORT
+	'Dim EXPORT As String = ""
+	'
+	'Try
+	'	EXPORT = iProperties.Value("Custom", "EXPORT")
+	'Catch
+	'	ERRORS = ERRORS & " Could Not Pull EXPORT. " & vbNewLine & vbNewLine
+	'	MessageBox.Show(ERRORS, "ERRORS")
+	'	Exit Sub
+	'End Try
+	'
+	'If EXPORT = "" Then
+	'	ERRORS = ERRORS & " Blank Is Not A Valid Value for Export. " & vbNewLine & vbNewLine
+	'Else
+	'	'Check If EXPORT Matches iProperty
+	'	EXPORT_RESPONSE = MessageBox.Show("Is The Export Sketh You Want To Use: " & iProperties.Value("Custom", "EXPORT") & "?" & vbLf, "Current Export:",MessageBoxButtons.YesNo)
+	'	If EXPORT_RESPONSE = vbNo Then
+	'		ERRORS = ERRORS & " Check Export Sketch Selected. " & vbNewLine & vbNewLine
+	'	End If
+	'End If
+	'']
+	
+	
+	'['Gather Lot Definint iProps
+	LotDefinerString = LotDefinerString & vbNewLine & vbNewLine
+	If Len(LotDefinerString)> 61 Then WriteText(TextFileIssues,LotDefinerString)	'skips if no notes have been added
+	']
+	
+	'['Show Errors
+	If WARNINGS <> "" Then
+		MessageBox.Show(WARNINGS, "WARNINGS")
+	End If
+	']
+
+	WriteText(TextFileReview, "The ReviewCuttop rule has successfully finished running.")
+Catch
+	MessageBox.Show("The ReviewCuttop has FAILED TO FINISH not all checks were performed", ThisDoc.FileName(True))
+	WriteText(TextFileReview, "The ReviewCuttop has FAILED TO FINISH not all checks were performed")
+End Try
+End Sub
+
+Function WriteText(File, Text, Optional EndWithNewLines = 2)
+'''Creator: Chris Kuchman
+'''Date Made: 1/27/2016
+'''Date Updated: 2/6/2016 - CAK
+'''Description: This function is used to write text to a text file. The first arguement is the specific text file you
+'''are writing to and the second is the string you want to pass. If you want the string to be broken up into seperate
+'''lines then add a \n to the string line. By default the string will add 2 new lines between each new string added,
+'''but if you want to add less or more new lines then pass a third argument with the number of new lines generated.
+'''(0 will just append the line to the last line)
+​
+'Sets a stream to pass the text into the notepad file (filestreams only do btyes so we need a stream writer to convert)
+Dim fs As New System.IO.FileStream(File, System.IO.FileMode.Append, System.IO.FileAccess.Write)
+Dim theLog As New System.IO.StreamWriter(fs)
+​
+'Breaks the string up into new lines
+Dim StringArray() As String = Split(Text, "\n ")
+​
+'For each split string, write to the file and add a new line (except for the very last line)
+For i As Integer = 0 To StringArray.Length - 1
+	If i < StringArray.Length - 1  Then
+		theLog.WriteLine(StringArray(i))
+	Else
+		theLog.Write(StringArray(i)) 'Write will not add a new line by default like WriteLine
+	End If
+Next
+​
+Dim j As Integer = 0
+​
+'Add the number of new lines passed into the optional parameter, will loop once if the default value is used
+While EndWithNewLines > j
+	theLog.WriteLine()
+	j += 1
+End While
+​
+'Closes the stream
+theLog.Close()
+End Function

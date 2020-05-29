@@ -1,0 +1,352 @@
+﻿'''Creator: Chris Kuchman
+'''Date Made: 1/27/2016
+'''Description: This external rule is for reviewing all steel .iam files. The ReviewFile external
+'''rule should be ran which will call this seperate file. This file should only be used to provide
+'''text alerts (in shared review text tile), do not actively change the part without asking the 
+'''user if the change is desired.
+
+Sub Main()
+Try
+	TextFileReview = "c:\temp\ReviewFile.txt" 'This text file records if the rule completes and is used as the final file shown
+	TextFileChecks = "c:\temp\ReviewChecks.txt"	'This text file stores all checks made
+	TextFileIssues = "c:\temp\ReviewIssues.txt"	'This is the text file that records all issues found by the review rules
+	
+	'['Windows File Name 
+	'True/False means with/without file extension.
+	Dim FileName As String = ThisDoc.FileName(False)
+	Dim FileNameLong As String = ThisDoc.FileName(True)
+	']
+	
+	'['Check to see if PartName follows common naming practice and assign unique values
+	Dim FileNameSuffix As String 
+	FileNameSuffix = Right(FileName,3)
+	
+	'Type specific checks
+	CheckPowderOven = False
+	FileNameValid = True
+	
+	'then check naming suffixes
+	Select Case FileNameSuffix
+		Case "-CP"
+			ERPAllowed = {"360","370","390"}
+			OPTAllowed = {"SMOPT1","SMOPT2","SMOPT3"}
+		Case "-WD"
+			ERPAllowed = {"390","340"}
+			OPTAllowed = {"WELDOPT1","WELDOPT2"}
+		Case "-PM"
+			ERPAllowed = {"360","370","390","770","790","80"}
+			OPTAllowed = {"PEMOPT1"}
+		Case "-PP"
+			ERPAllowed = {"760","770","790","950","945","80"} 'added 760 (electric assembly) CLM 3/9/17
+			OPTAllowed = {"POWOPT1","POWOPT2"}
+			CheckPowderOven = True 
+		Case "-AS"
+			ERPAllowed = {"950","945","80"}
+			OPTAllowed = {"LEGOPT"}
+		Case Else
+			WriteText(TextFileIssues, "File name does not end in standard -** so ERP and OPT could not be checked.")
+			FileNameValid = False
+	End Select
+	']
+	
+	'['Check if ERP is correct
+	If FileNameValid Then
+		ERP_Check(TextFileIssues,TextFileChecks, ERPAllowed)
+		WriteText(TextFileChecks, "SteelAsm - ERP - Does the ERP work for file type",1)
+	End If
+	']
+	
+	'['Check if only correct OPTs are used
+	If FileNameValid Then
+		OPT_Check(TextFileIssues,TextFileChecks, OPTAllowed)
+		WriteText(TextFileChecks, "SteelAsm - OPT IProperties - Are the correct iProperty names used",1)
+	End If
+	']
+	
+	'['Check to see if it fits in powder oven
+	If CheckPowderOven Then
+		PowderOvenCheck(TextFileIssues,TextFileChecks)
+		WriteText(TextFileChecks, "SteelAsm - Powder Oven - Will it fit",1)
+	End If
+	']
+	
+	'['Check for Drawing File
+	oPath = ThisDoc.ChangeExtension(".idw")
+	If Not (System.IO.File.Exists(oPath)) Then
+		WriteText(TextFileIssues, "This file does not have a drawing with a matching name.")
+		WriteText(TextFileChecks,"ISSUE FOUND - ", 0)		
+	End If
+	WriteText(TextFileChecks, "SteelAsm - Drawing - Does it exist",1)
+	']
+	
+	'['Check if File Needs Net Values
+	ERP = CStr(iProperties.Value("Custom", "ERP_OPERATION"))
+	
+	If ERP = "600" Or ERP = "620" Or ERP = "630" Or ERP = "950" Or ERP = "945" Or ERP = "80" Then
+		Try
+			TestExistence = iProperties.Value("Custom", "NETDEPTH")
+			TestExistence2 = iProperties.Value("Custom", "NETHEIGHT")
+			TestExistence3 = iProperties.Value("Custom", "NETWIDTH")
+			NetCheck(TextFileIssues,TextFileChecks)
+		Catch
+			WriteText(TextFileIssues, "This file does not have NETs but they are used by the floor at this ERP.")
+		End Try
+	ElseIf ERP = "390"
+		YesIsWeldPart = MessageBox.Show("Is this a Weld Part?", "WeldPart?",MessageBoxButtons.YesNo)
+		If YesIsWeldPart = vbYes
+			Try
+				TestExistence = iProperties.Value("Custom", "NETDEPTH")
+				NetCheck(TextFileIssues,TextFileChecks)
+			Catch
+				WriteText(TextFileIssues, "NETDEPTH is missing. This isn't necessary, but is lot defining, so egg will be on your face if CPs change size and the print doesn't.")
+			End Try
+			Try
+				TestExistence2 = iProperties.Value("Custom", "NETHEIGHT")
+				NetCheck(TextFileIssues,TextFileChecks)
+			Catch
+				WriteText(TextFileIssues, "NETHEIGHT is missing. This isn't necessary, but is lot defining, so you'll be the fool if CPs change size and the print doesn't.")
+			End Try
+			Try
+				TestExistence3 = iProperties.Value("Custom", "NETWIDTH")
+				NetCheck(TextFileIssues,TextFileChecks)
+			Catch
+				WriteText(TextFileIssues, "NETWIDTH is missing. This isn't necessary, but is lot defining, so if CPs change size the print won't necessarily be replaced.")
+			End Try
+		Else
+			Try
+				TestExistence = iProperties.Value("Custom", "NETDEPTH")
+				TestExistence2 = iProperties.Value("Custom", "NETHEIGHT")
+				TestExistence3 = iProperties.Value("Custom", "NETWIDTH")
+				WriteText(TextFileIssues, "This file has NETs but they are NOT used by the floor at this ERP.")
+			Catch
+				'Good
+			End Try
+		End If
+	Else
+		Try
+			TestExistence = iProperties.Value("Custom", "NETDEPTH")
+			TestExistence2 = iProperties.Value("Custom", "NETHEIGHT")
+			TestExistence3 = iProperties.Value("Custom", "NETWIDTH")
+			WriteText(TextFileIssues, "This file has NETs but they are NOT used by the floor at this ERP.")
+		Catch
+			'Good
+		End Try
+	End If
+	WriteText(TextFileChecks, "SteelAsm - NETs - Are there NETs and should there be for the ERP",1)
+	']
+	
+	WriteText(TextFileReview, "The ReviewSteelAsm rule has successfully finished running.")
+Catch
+	MessageBox.Show("The ReviewSteelAsm has FAILED TO FINISH not all checks were performed", ThisDoc.FileName(True))
+	WriteText(TextFileReview, "The ReviewSteelAsm has FAILED TO FINISH not all checks were performed")
+End Try
+End Sub
+	
+	
+Function ERP_Check(TextFileIssues, TextFileChecks, ERPAllowed)
+'''Creator: Chris Kuchman
+'''Date Made: 1/27/2016
+'''Description: This function is used to determine if the ERP is correct of the file type. It takes
+'''both a the text file path that the messages should be written to and a array of ERP numbers in
+'''text form (as we sometimes have the ERP_OPERATION as a text iProperty).
+	
+	Try
+		ERP = CStr(iProperties.Value("Custom", "ERP_OPERATION")) 'Because a ERP can be text or number they are all made into text
+	Catch
+		WriteText(TextFileIssues, "ERP could not be found")
+		WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+	End Try
+	
+	Try
+		If ERP = "0" Then
+			ERP = InputBox("ERP_OPERATION Is Zero. Input an ERP", "ERP_OPERATION VALIDATION", iProperties.Value("Custom", "ERP_OPERATION"))
+			If ERP = "" Then
+				WriteText(TextFileIssues, "ERP was left blank")
+				WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+			Else
+				iProperties.Value("Custom", "ERP_OPERATION") = ERP
+			End If
+		Else
+			CorrectERP = False
+			
+			'Checks the ERP in the iProp against all of the ERPs listed in the ERPAllowed array
+			For i = 0 To ERPAllowed.Length - 1
+				If ERPAllowed(i) = ERP Then
+					CorrectERP = True
+					Exit For
+				End If
+			Next
+			
+			'If the ERP is not found in the array it asks the user to confirm that the value is correct
+			If CorrectERP = False Then
+				ERP = InputBox("ERP_OPERATION Is " & ERP & ". Are You Sure This Is Correct?" & vbLf & "Enter A New ERP If Required.", "ERP_OPERATION VALIDATION", iProperties.Value("Custom", "ERP_OPERATION"))
+				If ERP = "" Then
+					WriteText(TextFileIssues, "ERP was left blank")
+					WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+				Else
+					iProperties.Value("Custom", "ERP_OPERATION") = ERP
+				End If
+			End If
+		End If
+	Catch  'if ERP_OPERATION is a blank text field then the try logic wont catch it
+		ERP = InputBox("ERP_OPERATION Is Blank. Input an ERP", "ERP_OPERATION VALIDATION", iProperties.Value("Custom", "ERP_OPERATION"))
+		If ERP = "" Then
+			'ok do nothing
+		Else
+			iProperties.Value("Custom", "ERP_OPERATION") = ERP
+		End If
+	End Try
+End Function
+
+
+Function OPT_Check(TextFileIssues, TextFileChecks, OPTAllowed)
+'''Creator: Chris Kuchman
+'''Date Made: 1/27/2016
+'''Description: This function is used to determine if all OPT are lot defining. It takes
+'''both a the text file path that the messages should be written to and a array of ERP numbers in
+'''text form (as we sometimes have the ERP_OPERATION as a text iProperty).
+
+'Define custom property collection
+oCustomPropertySet = ThisDoc.Document.PropertySets.Item("Inventor User Defined Properties")
+'Look at each property in the collection
+For Each oCustProp In oCustomPropertySet
+CorrectOpt = False
+	'Check to see if the iProp is a OPT
+	If oCustProp.Name Like "*OPT*" Then
+		For i = 0 To OPTAllowed.Length - 1
+			If OPTAllowed(i) = oCustProp.Name Then
+				CorrectOpt = True
+			End If
+		Next
+		If CorrectOpt = False
+			IPropName = oCustProp.Name 'You can't pass a function into a function so I need to store the name in a variable first
+			WriteText(TextFileIssues, IPropName & " is not a lot defining option.")
+			WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+		End If
+	End If
+Next
+End Function
+
+
+Function PowderOvenCheck(TextFileIssues, TextFileChecks)
+'''Creator: Chris Kuchman
+'''Date Made: 1/27/2016
+'''Date Modified: 2/11/2016 - Chris Kuchman
+'''Description: This function is used to determine if the part is able to run
+'''through the powder line without stopping the line. The only arguement it takes
+'''is the file path of the text file to write issue to.
+
+Try	
+	Dim NetDimensions As Double() = {Round(Measure.ExtentsHeight, 4),
+									 Round(Measure.ExtentsWidth, 4),
+									 Round(Measure.ExtentsLength, 4)}
+
+	'Sorts the array from smallest to largest so that orientation doesnt matter
+	Array.Sort(NetDimensions)
+	
+	If NetDimensions(0) > 27.5 Then	'updated 12/9/16 to match other documentation
+		WriteText(TextFileIssues, "The smallest MeasureExtents dim is " & NetDimensions(0) & " which may be too wide to fit into the powder oven, is the part " & NetDimensions(0) & " wide?")
+		WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+	End If
+	
+	If NetDimensions(1) > 56 Then
+		WriteText(TextFileIssues, "The second smallest MeasureExtents dim is " & NetDimensions(1) & " which may be too tall to fit into the powder oven, is the part " & NetDimensions(1) & " tall?")
+		WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+	End If
+	
+	If NetDimensions(2) > 96 Then
+		WriteText(TextFileIssues, "The largest MeasureExtents dim is " & NetDimensions(2) & " which may be too long to fit into the powder oven, is the part " & NetDimensions(2) & " long?")
+		WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+	End If
+	
+Catch
+	WriteText(TextFileIssues, "Unable to determine if the part fits in the oven, are NETs not present?")
+	WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+End Try
+End Function
+
+
+Function NetCheck(TextFileIssues, TextFileChecks)
+'''Creator: Chris Kuchman
+'''Date Made: 1/27/2016
+'''Description: This function is used to determine if the NETs seem to be right
+'''based on the measure tool. We are trying to avoid using the measure tool due to errors
+'''but this will provide a alert if the custom net calculation was not updated. The only 
+'''arguement it takes is the file path of the text file to write issue to.
+
+Try
+	'These are made into a double to allow math comparisons to be performed
+	Dim NETDEPTH As Double = iProperties.Value("Custom", "NETDEPTH")
+	Dim NETHEIGHT As Double = iProperties.Value("Custom", "NETHEIGHT")
+	Dim NETWIDTH As Double = iProperties.Value("Custom", "NETWIDTH")
+	
+	NetDepthMeasure = Round(Measure.ExtentsHeight, 4)
+	NetHeightMeasure = Round(Measure.ExtentsWidth, 4)
+	NetWidthMeasure = Round(Measure.ExtentsLength, 4)
+	
+	'The amount we roughly expect a Net to be off from a measure
+	NetTolerance = 0.5
+	
+	'Difference between NET calculated and NET measured
+	NetDepthDiff = NETDEPTH - NetDepthMeasure
+	NetHeightDiff = NETHEIGHT - NetHeightMeasure
+	NetWidthDiff = NETWIDTH - NetWidthMeasure
+	
+	If NetDepthDiff > NetTolerance Or NetDepthDiff < -NetTolerance Then
+		WriteText(TextFileIssues, "The NETDEPTH (" & NETDEPTH & ") is " & NetDepthDiff & " different from the Measure tool (" & NetDepthMeasure & "), Is this correct? ")
+		WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+	End If
+	
+	If NetHeightDiff > NetTolerance Or NetHeightDiff < -NetTolerance Then
+		WriteText(TextFileIssues, "The NETHEIGHT (" & NETHEIGHT & ") is " & NetHeightDiff & " different from the measure tool (" & NetHeightMeasure & "), is this correct? ")
+		WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+	End If
+	
+	If NetWidthDiff > NetTolerance Or NetWidthDiff < -NetTolerance Then
+		WriteText(TextFileIssues, "The NETWIDTH (" & NETWIDTH & ") is " & NetWidthDiff & " different from the measure tool (" & NetWidthMeasure & "), is this correct? ")
+		WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+	End If
+Catch
+	WriteText(TextFileIssues, "Error determining if the NETs are reasonable in NetCheck")
+	WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+End Try
+End Function
+
+
+Function WriteText(File, Text, Optional EndWithNewLines = 2)
+'''Creator: Chris Kuchman
+'''Date Made: 1/27/2016
+'''Date Updated: 2/6/2016 - CAK
+'''Description: This function is used to write text to a text file. The first arguement is the specific text file you
+'''are writing to and the second is the string you want to pass. If you want the string to be broken up into seperate
+'''lines then add a \n to the string line. By default the string will add 2 new lines between each new string added,
+'''but if you want to add less or more new lines then pass a third argument with the number of new lines generated.
+'''(0 will just append the line to the last line)
+​
+'Sets a stream to pass the text into the notepad file (filestreams only do btyes so we need a stream writer to convert)
+Dim fs As New System.IO.FileStream(File, System.IO.FileMode.Append, System.IO.FileAccess.Write)
+Dim theLog As New System.IO.StreamWriter(fs)
+​
+'Breaks the string up into new lines
+Dim StringArray() As String = Split(Text, "\n ")
+​
+'For each split string, write to the file and add a new line (except for the very last line)
+For i As Integer = 0 To StringArray.Length - 1
+	If i < StringArray.Length - 1  Then
+		theLog.WriteLine(StringArray(i))
+	Else
+		theLog.Write(StringArray(i)) 'Write will not add a new line by default like WriteLine
+	End If
+Next
+​
+Dim j As Integer = 0
+​
+'Add the number of new lines passed into the optional parameter, will loop once if the default value is used
+While EndWithNewLines > j
+	theLog.WriteLine()
+	j += 1
+End While
+​
+'Closes the stream
+theLog.Close()
+End Function

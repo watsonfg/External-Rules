@@ -1,0 +1,31 @@
+﻿' <IsStraightVb>True</IsStraightVb>
+Public Class TestFunctions  
+    Private Parameter As IParamDynamic
+
+    Sub New(Parameter As IParamDynamic)
+ 
+        Me.Parameter = Parameter
+
+    End Sub
+
+    
+	
+    Function GetParameterValue(ByRef ResultString As String) 
+		Try
+        	ResultString = "Found the EDGTHK Parameter passed to 'GetParameterValue', value is: " & Parameter("EDGTHK")
+		Catch
+			ResultString = "Failed to find a Parameter named EDGTHK."
+		End Try
+        Return ResultString
+    End Function  
+	
+	
+	
+	Function GetPlainValue(ByRef ResultString As String) 
+        ResultString = "Returned this string value from 'GetPlainValue' function."
+        Return ResultString
+    End Function 
+	
+	
+
+End Class

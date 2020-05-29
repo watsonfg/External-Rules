@@ -1,0 +1,279 @@
+﻿'''Creator: Fred Wirtz
+'''Date Made:
+'''Description: 
+
+Sub Main()
+TextFileReview = "c:\temp\ReviewFile.txt" 'This text file records if the rule completes and is used as the final file shown
+TextFileChecks = "c:\temp\ReviewChecks.txt"	'This text file stores all checks made
+TextFileIssues = "c:\temp\ReviewIssues.txt"	'This is the text file that records all issues found by the review rules
+
+Try
+	'['Populate FileName
+	FileName = ThisDoc.FileName(True)		 'with extension
+	']
+	
+	'['ERP_OPERATION
+	Dim ERP_OPERATION As Double = -5
+	
+	'Pull iProperty
+	Try
+		ERP_OPERATION = iProperties.Value("Custom", "ERP_OPERATION")
+	Catch
+		ERRORS = "Could Not Pull ERP_OPERATION. ReviewSteelCutTube did not complete."
+		WriteText(TextFileIssues, ERRORS)
+		WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+		WriteText(TextFileChecks, "SteelCutTube - ERP_OPERATION is present", 1)
+		MessageBox.Show(ERRORS, "ERRORS")
+		Exit Sub
+	End Try
+	WriteText(TextFileChecks, "SteelCutTube - ERP_OPERATION - Does it exist", 1)
+	
+	
+	ERP_Allowed = {{360, "MIG"}, {370, "TIG"}, {390, "Powder"}}
+	
+	ActiveAllowedERP = False
+	
+	For index = 0 To ERP_Allowed.GetUpperBound(0)
+		If ERP_OPERATION = ERP_Allowed(index, 0) Then
+			ActiveAllowedERP = True
+			Exit For
+		End If
+	Next
+	
+	If Not ActiveAllowedERP
+		WriteText(TextFileIssues, "Please Change The ERP_OPERATION To A Valid Operation For Cut Tubes:", 1) 
+		WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+		For index = 0 To ERP_Allowed.GetUpperBound(0)
+			WriteText(TextFileIssues, ERP_Allowed(index, 0) & " (" & ERP_Allowed(index, 1) & ")", 1)
+		Next
+		WriteText(TextFileIssues, "", 1) 'Ends the string with a blank space between this and the next error
+	End If
+	WriteText(TextFileChecks, "SteelCutTube - ERP_OPERATION - Is it one of the common ERPs", 1)
+	']
+	
+	'['IDWEXPORT
+	Dim IDWEXPORT As String = "N"
+	
+	'Pull iProperty
+	Try
+		IDWEXPORT = iProperties.Value("Custom", "IDWEXPORT")
+	Catch
+		WriteText(TextFileIssues, " Could Not Pull IDWEXPORT.")
+		WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+	End Try
+	
+	If IDWEXPORT <> "Y" Then
+		WriteText(TextFileIssues, "IDWEXPORT MUST ALWAYS Be Y For a Cut Tube!")
+		WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+	End If
+	
+	WriteText(TextFileChecks, "SteelCutTube - IDWEXPORT - Present and set to Y", 1)
+	']
+	
+	'['Check for Drawing File
+	oPath = ThisDoc.ChangeExtension(".idw")
+	If Not (System.IO.File.Exists(oPath)) Then
+		WriteText(TextFileIssues, "This file does not have a drawing with a matching name.")
+		WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+	End If
+	']
+	
+	'['LENGTH
+	Dim LENGTH As Double = 0
+	
+	Try
+		LENGTH = iProperties.Value("Custom", "LENGTH")
+	Catch
+		ERRORS = "Could Not Pull LENGTH. ReviewSteelCutTube did not complete."
+		WriteText(TextFileIssues, ERRORS)
+		WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+		WriteText(TextFileChecks, "SteelCutTube - LENGTH - Does it exist", 1)		
+		MessageBox.Show(ERRORS, "ERRORS")
+		Exit Sub
+	End Try
+	
+	'Allowable Increment
+	Increment = 0.0625
+	
+	'Determine Remainder
+	Remainder = (LENGTH / Increment) Mod 1
+	
+	'Round Remainder to 5 decimal places to account for double floating math
+	Remainder = Round(Remainder, 5)
+	
+	'Check if remainder is zero or one and error if remainder is not zero or one.
+	'Remainder of one when dividing by one is fine.
+	If Remainder = 0 Or Remainder = 1
+		'Okay
+	Else
+		WriteText(TextFileIssues, "LENGTH Must Be an Increment of " & Increment & " Inch From Standard Length")
+		WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+	End If
+	
+	If LENGTH < 0 Then
+		WriteText(TextFileIssues, "Length Must Be Greater Than Zero")
+		WriteText(TextFileChecks,"ISSUE FOUND - ", 0)
+	End If
+	
+	WriteText(TextFileChecks, "SteelCutTube - LENGTH - Is it greater than zero and on the " & Increment & " increment", 1)
+	']
+	
+	'['MATTYP
+	Dim MATTYP As String = ""
+	
+	Try
+		MATTYP = iProperties.Value("Custom", "MATTYP")
+	Catch
+		ERRORS = "Could Not Pull MATTYP. ReviewSteelCutTube did not complete"
+		WriteText(TextFileIssues, ERRORS)
+		WriteText(TextFileChecks, "ISSUE FOUND - ", 0)
+		WriteText(TextFileChecks, "SteelCutTube - MATTYP - Does it exist", 1)
+		MessageBox.Show(ERRORS, "ERRORS")
+		Exit Sub
+	End Try
+	
+	'Please add new numbers in order.
+	'Thanks you!
+	TubeMaterialTypes = {"0000020","0000061","0000106","0000107","0000237","012510","014751","060080","060135","060205","065000","065001","069264","096000","096100","096150","096200","096205","096600","115200","115500","115555","206000","211000","211010","255500","256510","256515","276000","276500","276550","276560","276570","276595","276675","276680","277000","277005","277025","277550","277555","277560","277580","277585","277590","277593","277600","480066","480102","480104","480132","480175","480264","480290","480292","481019","481097","481182","490100","490600","493830","889805"}
+	
+	ActiveAllowedMATTYP = False
+	
+	For index = 0 To TubeMaterialTypes.GetUpperBound(0)
+		If MATTYP = TubeMaterialTypes(index) Then
+			ActiveAllowedMATTYP = True
+			Exit For
+		End If
+	Next
+	
+	If Not ActiveAllowedMATTYP
+		WriteText(TextFileIssues, "Please Change The MATTYP To A Valid Material Type For Cut Tubes")
+		WriteText(TextFileChecks, "ISSUE FOUND - ", 0)
+	End If
+	
+	WriteText(TextFileChecks, "SteelCutTube - MATTYP - Is one of our tubes", 1)
+	']
+	
+	'['Miter Angles
+	'MITERANGLEA
+	Dim MITERANGLEA As Double = 0
+	
+	Try
+		MITERANGLEA = iProperties.Value("Custom", "MITERANGLEA")
+	Catch
+		ERRORS = "Could Not Pull MITERANGLEA. ReviewSteelCutTube did not complete."
+		WriteText(TextFileIssues, ERRORS)
+		WriteText(TextFileChecks, "ISSUE FOUND - ", 0)
+		WriteText(TextFileChecks, "SteelCutTube - MITERANGLEA - Is present", 1)
+		MessageBox.Show(ERRORS, "ERRORS")
+		Exit Sub
+	End Try
+	
+	If MITERANGLEA < 0 OrElse MITERANGLEA > 90 Then
+		WriteText(TextFileIssues, "MITERANGLEA Must Be Greater Than 0 And Less Than or Equal to 90")
+		WriteText(TextFileChecks, "ISSUE FOUND - ", 0)
+	End If
+	
+	'MITERANGLEB
+	Dim MITERANGLEB As Double = 0
+	
+	Try
+		MITERANGLEB = iProperties.Value("Custom", "MITERANGLEB")
+	Catch
+		ERRORS = "Could Not Pull MITERANGLEB. ReviewSteelCutTube did not complete."
+		WriteText(TextFileIssues, ERRORS)
+		WriteText(TextFileChecks, "ISSUE FOUND - ", 0)
+		WriteText(TextFileChecks, "SteelCutTube - MITERANGLEB - Is present", 1)
+		MessageBox.Show(ERRORS, "ERRORS")
+		Exit Sub
+	End Try
+	
+	If MITERANGLEB < 0 OrElse MITERANGLEB > 90 Then
+		WriteText(TextFileIssues, "MITERANGLEB Must Be Greater Than 0 And Less Than or Equal to 90")
+		WriteText(TextFileChecks, "ISSUE FOUND - ", 0)
+	End If
+	
+	WriteText(TextFileChecks, "SteelCutTube - MITERANGLEA/B - Between 0 and 90", 1)
+	']
+	
+	'['Powder Finish
+	Dim POWFIN As String = ""
+	
+	Try
+		POWFIN = iProperties.Value("Custom", "POWFIN")
+		If POWFIN = "" Then
+			WriteText(TextFileIssues, "POWFIN Must Be A Valid Finish")
+			WriteText(TextFileChecks, "ISSUE FOUND - ", 0)
+		End If
+	Catch
+		WriteText(TextFileIssues, "Could Not Pull POWFIN.")
+		WriteText(TextFileChecks, "ISSUE FOUND - ", 0)
+	End Try
+	
+	WriteText(TextFileChecks, "SteelCutTube - POWFIN - Not blank", 1)
+	']
+	
+	'['Other non-working segment
+	'Non-working iProperties that not not checked in other parts of the rule.
+	OtherNonWorkingiProperties= {{"CTOPT1"},{"CTOPT2"}}
+	
+	WriteText(TextFileIssues, "Your model has the following values for non-working segments (lot defining):", 1)
+	
+	For index = 0 To OtherNonWorkingiProperties.GetUpperBound(0)
+		iPropertyName = OtherNonWorkingiProperties(index, 0)
+		Try
+			iPropertyValue = iProperties.Value("Custom", OtherNonWorkingiProperties(index, 0))
+		Catch
+			iPropertyValue = "Not Found"
+		End Try
+	
+		WriteText(TextFileIssues, iPropertyName & ": " & vbTab & iPropertyValue, 1)
+	Next
+	
+	WriteText(TextFileIssues, "", 1)
+
+	WriteText(TextFileReview, "The ReviewSteelCutTube rule has successfully finished running.")
+Catch
+	MessageBox.Show("The ReviewSteelCutTube has FAILED TO FINISH not all checks were performed", ThisDoc.FileName(True))
+	WriteText(TextFileReview, "The ReviewSteelCutTube has FAILED TO FINISH not all checks were performed")
+End Try
+']
+End Sub
+
+
+Function WriteText(File, Text, Optional EndWithNewLines = 2)
+'''Creator: Chris Kuchman
+'''Date Made: 1/27/2016
+'''Date Updated: 2/6/2016 - CAK
+'''Description: This function is used to write text to a text file. The first arguement is the specific text file you
+'''are writing to and the second is the string you want to pass. If you want the string to be broken up into seperate
+'''lines then add a \n to the string line. By default the string will add 2 new lines between each new string added,
+'''but if you want to add less or more new lines then pass a third argument with the number of new lines generated.
+'''(0 will just append the line to the last line)
+
+'Sets a stream to pass the text into the notepad file (filestreams only do btyes so we need a stream writer to convert)
+Dim fs As New System.IO.FileStream(File, System.IO.FileMode.Append, System.IO.FileAccess.Write)
+Dim theLog As New System.IO.StreamWriter(fs)
+
+'Breaks the string up into new lines
+Dim StringArray() As String = Split(Text, "\n ")
+
+'For each split string, write to the file and add a new line (except for the very last line)
+For i As Integer = 0 To StringArray.Length - 1
+	If i < StringArray.Length - 1  Then
+		theLog.WriteLine(StringArray(i))
+	Else
+		theLog.Write(StringArray(i)) 'Write will not add a new line by default like WriteLine
+	End If
+Next
+
+Dim j As Integer = 0
+
+'Add the number of new lines passed into the optional parameter, will loop once if the default value is used
+While EndWithNewLines > j
+	theLog.WriteLine()
+	j += 1
+End While
+​
+'Closes the stream
+theLog.Close()
+End Function

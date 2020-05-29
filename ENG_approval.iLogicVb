@@ -1,0 +1,16 @@
+﻿'myName = "CAK"
+myName= ThisApplication.GeneralOptions.UserName
+
+'Set drawing approved by as myName
+'Set drawing approved date as today
+If iProperties.Value("Status", "Eng. Approved By") <> myName Then
+	iProperties.Value("Status", "Eng. Approved By") = myName
+End If
+iProperties.Value("Status", "Eng. Approved Date") = Now
+
+
+'Update DRAWN BY and DATE (Optional)
+'iProperties.Value("Summary", "Author") = "DBW"
+'iProperties.Value("Project", "Creation Date") = Now
+'iProperties.Value("Project", "Project") = "SEVEN 3.0"
+ 

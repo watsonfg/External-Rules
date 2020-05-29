@@ -1,0 +1,139 @@
+﻿' <FireOthersImmediately>False</FireOthersImmediately>
+'['Windows File Name With Extension
+PARTNAME = ThisDoc.FileName(True) 'with extension
+']
+
+'['Get values from external iProperties and Parameters
+MATTYP = iProperties.Value("Custom", "MATTYP")
+ERRORS = iProperties.Value("Custom", "ERRORS")
+']
+
+'['Determine iProp used for EDGE TYPE
+Try
+	EDGTYP = iProperties.Value("Custom", "EDGTYP")
+Catch
+	Try
+		EDGPRF = iProperties.Value("Custom", "EDGPRF")
+		EDGTYP = EDGPRF
+	Catch
+		'In the case of panels the thickness is the same as Q
+		EDGTYP = "Q"
+	End Try
+End Try
+']
+
+'['Determine thickness of given material type
+Select Case MATTYP
+	Case "1PPBK"
+        ERRORS = ERRORS & "MATTHK not known for " & MATTYP & ", edit ThicknessCalc for new material(I:" & PARTNAME & ")"
+	Case "1RPPBK"
+        ERRORS = ERRORS & "MATTHK not known for " & MATTYP & ", edit ThicknessCalc for new material(I:" & PARTNAME & ")"
+	Case "1PPWH"
+        ERRORS = ERRORS & "MATTHK not known for " & MATTYP & ", edit ThicknessCalc for new material(I:" & PARTNAME & ")"	
+	Case "1LMC"
+        ERRORS = ERRORS & "MATTHK not known for " & MATTYP & ", edit ThicknessCalc for new material(I:" & PARTNAME & ")"
+	Case "2M1ZE"
+        ERRORS = ERRORS & "MATTHK not known for " & MATTYP & ", edit ThicknessCalc for new material(I:" & PARTNAME & ")"	
+	Case "2MDF"
+        ERRORS = ERRORS & "MATTHK not known for " & MATTYP & ", edit ThicknessCalc for new material(I:" & PARTNAME & ")"
+    Case "2PHENGS"
+        ERRORS = ERRORS & "MATTHK not known for " & MATTYP & ", edit ThicknessCalc for new material(I:" & PARTNAME & ")"
+	Case "3TB"
+        ERRORS = ERRORS & "MATTHK not known for " & MATTYP & ", edit ThicknessCalc for new material(I:" & PARTNAME & ")"
+	Case "3PLY"
+        ERRORS = ERRORS & "MATTHK not known for " & MATTYP & ", edit ThicknessCalc for new material(I:" & PARTNAME & ")"
+	Case "4PB"
+        ERRORS = ERRORS & "MATTHK not known for " & MATTYP & ", edit ThicknessCalc for new material(I:" & PARTNAME & ")"
+	Case "4TB"
+        ERRORS = ERRORS & "MATTHK not known for " & MATTYP & ", edit ThicknessCalc for new material(I:" & PARTNAME & ")"
+	Case "5P1"
+        MATTHK = 0.758 'updated to reflect 11/16" core (vs 5/8") EC-1224 1/25/19
+	Case "5P2"
+        MATTHK = 0.758 'updated to reflect 11/16" core (vs 5/8") EC-1224 1/25/19
+    Case "5.5PB"
+        ERRORS = ERRORS & "MATTHK not known for " & MATTYP & ", edit ThicknessCalc for new material(I:" & PARTNAME & ")"
+	Case "6EB1"
+        MATTHK = .75 '"6EB1" added 4/24/18 lmp '''thickness not correct (just a close approximation)
+	Case "6EB2"
+        MATTHK = .75 '"6EB1" added 4/24/18 lmp '''thickness not correct (just a close approximation)
+	Case "8PB"
+        ERRORS = ERRORS & "MATTHK not known for " & MATTYP & ", edit ThicknessCalc for new material(I:" & PARTNAME & ")"
+	Case "8EB"
+        MATTHK = 0.94
+	Case "8EB1"
+        MATTHK = .985 '1.03 updated to thinner Ply EC-1021 9/19/18		'"8EB1" added 9/2/16 GJD
+	Case "8EB2"
+        MATTHK = .985 '1.03 updated to thinner Ply EC-1021 9/19/18
+	Case "9MP1"
+        MATTHK = 1.134 'updated to reflect 27mm" core (vs 1-1/8") EC-1224 1/25/19
+	Case "9MP2"
+        MATTHK = 1.134 'updated to reflect 27mm" core (vs 1-1/8") EC-1224 1/25/19
+	Case "24PLY"
+        ERRORS = ERRORS & "MATTHK not known for " & MATTYP & ", edit ThicknessCalc for new material(I:" & PARTNAME & ")"
+	Case "9ANY"
+        ERRORS = ERRORS & "MATTHK not known for " & MATTYP & ", edit ThicknessCalc for new material(I:" & PARTNAME & ")"
+    Case "9MDF1"
+        MATTHK = 1.165
+	Case "S4S"
+        ERRORS = ERRORS & "MATTHK not known for " & MATTYP & ", edit ThicknessCalc for new material(I:" & PARTNAME & ")"
+	Case "PLEXIC"
+        ERRORS = ERRORS & "MATTHK not known for " & MATTYP & ", edit ThicknessCalc for new material(I:" & PARTNAME & ")"				
+    Case Else
+		Thickness = Val(MATTYP)
+		If Thickness < 10  Then
+			i = 2
+		Else
+			i = 3
+		End If
+		MATTHK = Thickness / 8
+		Core = Mid(MATTYP, i, 1)
+		A = String.Compare("A", Core, True)
+		M = String.Compare("M", Core, True)
+		P = String.Compare("P", Core, True)
+		R = String.Compare("R", Core, True)
+		If P = 0 Then
+			MATTHK = MATTHK + .071 'added 0.071" thickness to account for laminate/backer EC-1224 1/25/19
+		ElseIf M = 0 Or A = 0 Or R = 0 Then
+			Core = Mid(MATTYP, i + 1, 1)
+			P = String.Compare("P", Core, True)
+			If P = 0 Then
+				'Pressed laminate adds thickness to the board
+				MATTHK = MATTHK + .071 '0.025 changed to 0.071" to account for actual laminate/backer dims EC-1224 1/25/19
+			End If
+		Else
+			ERRORS = ERRORS & "MATTHK not known for " & MATTYP & ", edit ThicknessCalc for new material(I:" & PARTNAME & ")"
+		End If
+End Select
+']
+
+
+Select Case EDGTYP
+	Case "X", "C"
+		EDGTHK = .125
+	Case "Q", "J", "H", "CQ"									'EC893 added H edge (Knife Trim with Square Corners)  'EC1396 added CQ edge
+		EDGTHK = .059
+	Case "Z"
+		EDGTHK = .118	
+	Case "M","N", "U", "S", "K", "V", "W", "P", "CU", "CV"		'"V" and "W" added 9/2/16 GJD  '"M" added 12/16/16 by DGS  '"P" added 3/26/18 by CAK  'EC1396 added CU and CV edges
+		EDGTHK = .001	
+	Case "B"
+		EDGTHK = 0.4375
+	Case Else
+		ERRORS = ERRORS & "EDGTHK not known for " & MATTYP & ", edit ThicknessCalc for new material(I:" & PARTNAME & ")"
+End Select
+
+iProperties.Value("Custom", "ERRORS") = ERRORS & iProperties.Value("Custom", "ERRORS")
+
+Try
+	'Try and assign the iProps to variables to see if they exist,
+	'this is to support older models that run the thk's through the iProp.
+	TestMATTHK = iProperties.Value("Custom", "MATTHK")
+	TestEDGTHK = iProperties.Value("Custom", "EDGTHK")
+	'Populates the iproperty values to be used by the model
+	iProperties.Value("Custom", "MATTHK") = MATTHK
+	iProperties.Value("Custom", "EDGTHK") = EDGTHK
+Catch
+	'The prefered method, uses parameters so a iProp does not need to exist at the top asm
+	Parameter("Matthk") = MATTHK
+	Parameter("Edgthk") = EDGTHK
+End Try
