@@ -26,30 +26,21 @@ Sub Main()
 	IgnoredTextStartText = ""
 	IgnoredTextHDW = ""
 	ChangedText = ""
-	
-	CodeChangeText = ""
-	CodeChangeError = ""
-
 
 	'Get list of all subpart documents
 	Dim refDocs As List(Of Document) = GetRefDocList(oDoc)
 	
 	'Add the top level to the list
 	refDocs.Add(oDoc)
-	
-	'Store all changed file names
-	Dim changedFileNames As List(Of String) = New List(Of String)()
 
 	'Go over each unique assembly or part in assembly
 	For Each refDoc As Document In refDocs
-	
+
 		'Get the part name
 		partName = refDoc.PropertySets.Item("Design Tracking Properties").Item("Part Number").Value
 		
-		'Get the file name (without extension)
-		filePathName = refDoc.FullFileName
-		pathLength = InStrRev(filePathName, "\", -1)
-		newFileName = Mid(filePathName, pathLength + 1, Len(filePathName)-pathLength-4)
+		'Get file name without extension
+		FileName = GetFileNameNoPathForDoc(refDoc)
 
 		'Generate new part name to use
 		newName = ReplaceFrontText(partName, oldText, newText)
@@ -57,78 +48,101 @@ Sub Main()
 		'Check if the part is HDW or a FX
 		If (refDoc.FullFileName Like "*\CMN\*" Or refDoc.FullFileName Like "*-FX.ipt") Then
 			IgnoredTextHDW = IgnoredTextHDW & partName & vbCrLf
+		
+		'Check if the New Name could not be generated as it didn't find a valid new name
+		ElseIf newName = "" Then
+			IgnoredTextStartText = IgnoredTextStartText & "Old PN: " & partName & vbCrLf
 
-		'Check if the Part Name and File Name do not match
 		Else
-
-			'Record fileName to update in Code		
-			changedFileNames.Add(newFileName)
-			
-			If Not newName = newFileName Then
-				IgnoredTextPN = IgnoredTextPN & "New PN: " & newName & vbTab & "FN: " & newFileName & vbCrLf
+			'Check if the Part Name and File Name do not match
+			If Not newName = FileName Then
+				IgnoredTextPN = IgnoredTextPN & "New PN: " & newName & vbTab & "FN: " & FileName & vbCrLf
 
 			Else
-				'If a blank file name was passed then passed in starting value didn't match
-				If NewName = "" Then
-					IgnoredTextStartText = IgnoredTextStartText & "Ignored (Start text Doesn't match passed value): "& vbTab & partName & vbCrLf
+				'Update the Part Number
+				refDoc.PropertySets.Item("Design Tracking Properties").Item("Part Number").Value = NewName
+				ChangedText = ChangedText & "Edited: " & partName & vbTab & vbTab & "Changed to: " & newName
+				
+				'Add warning for those that go over the 15 character frontier limit
+				If Len(NewName) > 15 Then
+					ChangedText = ChangedText & vbTab & "Warning: PN longer that 15 characters" & vbCrLf	
 				Else
-
-					refDoc.PropertySets.Item("Design Tracking Properties").Item("Part Number").Value = NewName
-					ChangedText = ChangedText & "Edited: " & partName & vbTab & vbTab & "Changed to: " & newName
-					
-					'Add warning for those that go over the 15 character frontier limit
-					If Len(NewName) > 15 Then
-						ChangedText = ChangedText & vbTab & "Warning: PN longer that 15 characters" & vbCrLf	
-					Else
-						ChangedText = ChangedText & vbCrLf
-					End If
+					ChangedText = ChangedText & vbCrLf
 				End If
 			End If
 		End If
 	Next
+
+
+	'Get the code names to change
+	IgnoredCodeStartText = ""
+	IgnoredCodeHDW = ""
+	ChangedCode = ""
+	
+	'Store all changed file names
+	Dim ChangedFileNames As List(Of String) = New List(Of String)()
 	
 	'Go over each unique assembly or part in assembly
 	For Each refDoc As Document In refDocs
-	
-		For Each newFN As String In changedFileNames
+
+		'Get file name without extension
+		FileName = GetFileNameNoPathForDoc(refDoc)
 		
-			'Get Hypothetical old name
-			oldFN = ReplaceFrontText(newFN, newText, oldText)
-			'CodeChangeText = CodeChangeText & "Trying to change " & oldFN & " to " & newFN & " in " & refDoc.FullFileName & ": "
+		'Check if the part is HDW or a FX
+		If refDoc.FullFileName Like "*\CMN\*" Or refDoc.FullFileName Like "*-FX.ipt" Then
+			IgnoredCodeHDW = IgnoredCodeHDW & refDoc.FullFileName & vbCrLf
+
+		'If the file does not match the new string start then ignore
+		ElseIf Not FileName.StartsWith(newText) Then
+			IgnoredCodeStartText = IgnoredCodeStartText & FileName & vbCrLf
+
+		Else
+			ChangedFileNames.Add(FileName)
+		End If
+	Next
+	
+	
+	'Go over each unique assembly or part in assembly and update the code
+	For Each refDoc As Document In refDocs
+
+		For Each NewFileName As String In ChangedFileNames
+		
+			'Get hypothetical old name
+			OldFileName = ReplaceFrontText(NewFileName, newText, oldText)
+
+			result = ReplaceLogicPartNameAllRules(refDoc, NewFileName, OldFileName)
 			
-			If oldFN = "" Then
-				CodeChangeText = CodeChangeText & "Ignored (Start text Doesn't match passed value):" & "for " & oldFN & " to " & newFN & " in " & refDoc.FullFileName & vbCrLf
+			If result <= 0 Then
+				ChangedCode = ChangedCode & "No Change--- " & "for " & OldFileName & " to " & NewFileName & " in " & refDoc.FullFileName & vbCrLf
 			Else
-				
-				result = ReplaceLogicPartName(refDoc, newFN, oldFN, "PROCESS")
-				result = result + ReplaceLogicPartName(refDoc, newFN, oldFN, "VALIDATE")
-				result = result + ReplaceLogicPartName(refDoc, newFN, oldFN, "DRAWING")
-				
-				If result = 0 Then
-					CodeChangeText = CodeChangeText & "No Change--- " & "for " & oldFN & " to " & newFN & " in " & refDoc.FullFileName & vbCrLf
-				Else
-					CodeChangeText = CodeChangeText & "Code Changed " & "for " & oldFN & " to " & newFN & " in " & refDoc.FullFileName & vbCrLf
-				End If
-				
-				'Reset Value
-				result = 0
-				
+				ChangedCode = ChangedCode & "Code Changed " & "for " & OldFileName & " to " & NewFileName & " in " & refDoc.FullFileName & vbCrLf
 			End If
+			
+			'Reset Value
+			result = 0
 		Next
 	Next
 	
-
+	
+	'Write out to text file
 	WriteText(replaceText, "------Changed Parts-------")
 	WriteText(replaceText, ChangedText, 1)
 	WriteText(replaceText, "------Ignored Parts-------")
+	WriteText(replaceText, "Reason: Start Text Doesn't Match Passed Value", 1)
+	WriteText(replaceText, "Tried to Change " & oldText & " to " & newText)
+	WriteText(replaceText, IgnoredTextStartText, 1)
 	WriteText(replaceText, "Reason: Changed Part Name Doesn't Match File Name")
 	WriteText(replaceText, IgnoredTextPN, 1)
-	WriteText(replaceText, "Reason: Start Text Doesn't Match Passed Value")
-	WriteText(replaceText, IgnoredTextStartText, 1)
 	WriteText(replaceText, "Reason: HDW or FX part")
 	WriteText(replaceText, IgnoredTextHDW, 1)
 	WriteText(replaceText, "------Changed Code-------")
-	WriteText(replaceText, CodeChangeText, 1)
+	WriteText(replaceText, ChangedCode, 1)
+	WriteText(replaceText, "------Ignored Code-------")
+	WriteText(replaceText, "Reason: Start Text Doesn't Match Current File Name", 1)
+	WriteText(replaceText, "Tried to Change " & oldText & " to " & newText)
+	WriteText(replaceText, IgnoredCodeStartText, 1)
+	WriteText(replaceText, "Reason: HDW or FX part")
+	WriteText(replaceText, IgnoredCodeHDW, 1)
 
 	openTextFile(replaceText)
 End Sub
@@ -137,7 +151,7 @@ End Sub
 Public Function GetDocument(fullDocName As String) As Document
 	'''Creator: Chris Kuchman
 	'''Date Made: 6/9/2020
-	'''Date Updated: 
+	'''Date Updated: 6/12/2020 - CAK
 	'''Description: Gets the document of the same name as the passed in document name.
 	'''If it fails to find it already loaded into Inventor (by being open or unsuppressed)
 	'''it will try to open the file.
@@ -155,7 +169,7 @@ Public Function GetDocument(fullDocName As String) As Document
 			'Try to open file to gain access, see WARNING
 			oDoc = ThisApplication.Documents.Open(fullDocName)
 		Catch
-			MsgBox("Failed to open " & fullDocName)
+			MsgBox("Failed to open " & fullDocName, "Function GetDocument")
 		End Try
 	End Try
 	
@@ -165,7 +179,7 @@ End Function
 
 Public Function GetDocumentFromOccurence(occ As ComponentOccurrence) As Document
 	'''Creator: Chris Kuchman
-	'''Date Made: 6/9/2020
+	'''Date Made: 6/12/2020
 	'''Date Updated: 
 	'''Description: Gets the document of the same name as the passed in occurence.
 	'''If it fails to find it already loaded into Inventor (by being open or unsuppressed)
@@ -190,7 +204,7 @@ Public Function GetDocumentFromOccurence(occ As ComponentOccurrence) As Document
 			'Try to open file to gain access, see WARNING
 			oDoc = ThisApplication.Documents.Open(occ.ReferencedDocumentDescriptor.FullDocumentName)
 		Catch
-			MsgBox("Failed to open " & fullDocName)
+			MsgBox("Failed to open " & fullDocName, "Function GetDocumentFromOccurence")
 		End Try
 	End Try
 	
@@ -201,7 +215,7 @@ End Function
 Public Function GetRefDocList(oDoc As AssemblyDocument) As List(Of Document)
 	'''Creator: Chris Kuchman
 	'''Date Made: 6/9/2020
-	'''Date Updated: 
+	'''Date Updated: 6/12/2020 - CAK
 	'''Description: Takes in a assembly document and returns a list of all unique assemblies
 	'''and parts documents that are present, not including the passed in document.
 
@@ -224,7 +238,7 @@ Public Function GetRefDocList(oDoc As AssemblyDocument) As List(Of Document)
 				refDocs.AddRange(GetRefDocList(refDoc))
 			End If
 		Catch
-			MsgBox("Failed to get " & occ.ReferencedDocumentDescriptor.FullDocumentName & " in function GetRefDocList")
+			MsgBox("Failed to get " & occ.ReferencedDocumentDescriptor.FullDocumentName, "Function GetRefDocList")
 		End Try
 	Next
 
@@ -232,52 +246,40 @@ Public Function GetRefDocList(oDoc As AssemblyDocument) As List(Of Document)
 	Return refDocs
 End Function
 
-'
-'Public Function GetRefDocList(oDoc As AssemblyDocument) As List(Of String)
-'	'''Creator: Chris Kuchman
-'	'''Date Made: 6/9/2020
-'	'''Date Updated: 
-'	'''Description: Takes in a assembly document and returns a list of all unique assemblies and parts names that 
-'	'''are present. This will cause Inventor to open all suppressed parts to get access to the complete list.
-'
-'	'Make list to store document names (not documents!)
-'	Dim refDocs As List(Of String) = New List(Of String)()
-'
-'	'Check each occurence in specified document
-'	For Each occ As ComponentOccurrence In oDoc.ComponentDefinition.Occurrences
-'	
-'		'Check if the part is suppressed, if so then toggle it to 
-'		ActiveSuppressed = occ.Suppressed()
-'	
-'		If ActiveSuppressed = True Then
-'			occ.Unsuppress()
-'			occ.Suppress(True)
-'		End If
-'	
-'		'Get the name of the document (includes the LOD text)
-'		Dim refDocName As String = occ.ReferencedDocumentDescriptor.FullDocumentName
-'
-'		'If the list doesn't have the file yet then add it
-'		If (refDocs.Contains(refDocName) = False) Then
-'			refDocs.Add(refDocName)
-'		End If
-'
-'		'If the occurence is a assembly then add all its occurences to the list to check
-'		If occ.DefinitionDocumentType = DocumentTypeEnum.kAssemblyDocumentObject Then
-'			Dim refDoc As Document = GetDocument(refDocName)
-'			refDocs.AddRange(getRefDocList(refDoc))
-'		End If
-'	Next
-'
-'	'Return list of unique occurences found
-'	Return refDocs
-'End Function
+
+Public Function GetFileNameNoPathForDoc(oDoc As Document, Optional IncludeExt As Boolean = False) As String
+	'''Creator: Chris Kuchman
+	'''Date Made: 6/12/2020
+	'''Date Updated: 
+	'''Description: Returns just the file name for the document without the full file path. Optional boolean
+	'''can be passed to include the extension which is off by default.
+	
+	Try
+		'Get file name with path
+		FilePathName = oDoc.FullFileName
+		
+		'Determine the position of the first folder indicator
+		PathLength = InStrRev(FilePathName, "\", -1)
+		
+		'Remove file path
+		FileName = Right(FilePathName, Len(FilePathName) - PathLength)
+		
+		'Remove Extension
+		If Not IncludeExt Then
+			FileName = Left(FileName, Len(FileName) - 4)
+		End If
+	Catch
+		MsgBox("Failed to get file name", "Function GetFileNameNoPathForDoc")
+	End Try
+
+	Return FileName
+End Function
 
 
 Public Function GetLogicText(oDoc As Document, ruleName As String) As String
 	'''Creator: Chris Kuchman
 	'''Date Made: 6/9/2020
-	'''Date Updated: 
+	'''Date Updated: 6/12/2020 - CAK
 	'''Description: Returns a string of the rule code matching the name specified in the document passed in. If the rule name does not match
 	'''any rules in the document then it returns a blank string.
 	
@@ -286,34 +288,32 @@ Public Function GetLogicText(oDoc As Document, ruleName As String) As String
 		iLogicAddin = ThisApplication.ApplicationAddIns.ItemById("{3bdd8d79-2179-4b11-8a5a-257b1c0263ac}")
 		iLogicAutomation = iLogicAddin.Automation
 	Catch ex As Exception
-		MsgBox("Unable to set variable iLogicAutomation or iLogic Add-in Missing.")
+		MsgBox("Unable to set variable iLogicAutomation or iLogic Add-in Missing.", "Function GetLogicText")
+		Return ""
 	End Try
 	
-	logicText = ""
-	
-	'Checks all rules in the document
+	'Try to open the rule to read the text
 	Try
-		For Each rule In iLogicAutomation.Rules(oDoc)
-		
-			'If the rule name matches the one specified
-			If rule.Name = ruleName Then
-				logicText = rule.Text
-			End If
-		Next
+		LogicText = iLogicAutomation.GetRule(oDoc, ruleName).Text
 	Catch
-		'Skip if fails to find any rules
+		'Skip if fails to find the rule
 	End Try
 	
-	Return logicText
+	Return LogicText
 End Function
 
 
-Public Function SetLogicText(oDoc As Document, ruleName As String, newText As String)
+Public Function SetLogicText(oDoc As Document, ruleName As String, newText As String) As Integer
 	'''Creator: Chris Kuchman
 	'''Date Made: 6/9/2020
-	'''Date Updated: 
+	'''Date Updated: 6/12/2020 - CAK
 	'''Description: Sets the code of the specified drawings rule to the passed in string. A archive of the previous rule text will be archived onto 
-	'''the users computer in case of error.
+	'''the users computer if a change has occured in case of error. 
+	'''Returns:
+	'''1: Part Changed
+	'''0: No Change Found
+	'''-1: No Rule Found
+	'''-2: No iLogic Module Found
 	
 	
 	'Checks for the iLogic Addin and the Autommaton variable
@@ -321,7 +321,7 @@ Public Function SetLogicText(oDoc As Document, ruleName As String, newText As St
 		iLogicAddin = ThisApplication.ApplicationAddIns.ItemById("{3bdd8d79-2179-4b11-8a5a-257b1c0263ac}")
 		iLogicAutomation = iLogicAddin.Automation
 	Catch ex As Exception
-		MsgBox("Unable to set variable iLogicAutomation or iLogic Add-in Missing.")
+		Return -2
 	End Try
 	
 	Try
@@ -329,70 +329,118 @@ Public Function SetLogicText(oDoc As Document, ruleName As String, newText As St
 		For Each rule In iLogicAutomation.Rules(oDoc)
 			If rule.Name = ruleName Then
 				
-				'Archives the older code 
-				'Check if folder exists else make it
-				If System.IO.Directory.Exists("C:\temp\codeChanges") = False Then
-					System.IO.Directory.CreateDirectory("C:\temp\codeChanges")
+				'Check to see if the rule has changed at all
+				Change = String.Compare(GetLogicText(oDoc, ruleName), newText)
+				
+				If Change <> 0 Then
+				
+					'Archives the older code 
+					'Check if folder exists else make it
+					If System.IO.Directory.Exists("C:\temp\codeChanges") = False Then
+						System.IO.Directory.CreateDirectory("C:\temp\codeChanges")
+					End If
+					
+					FileName = GetFileNameNoPathForDoc(oDoc)
+					
+					'Format the date to make work as file name
+					dateText = Now
+					dateText = Replace(dateText, "/", "-")
+					dateText = Replace(dateText, ":", "-")
+	
+					'Make a archive text file and store the old rule
+					oldRuleArchive = GenerateTextFile(FileName & "-" & ruleName & "-" & dateText, "C:\temp\codeChanges\")
+					WriteText(oldRuleArchive, rule.Text)
+					
+					'Updates the rule to the next code
+					rule.Text = newText
+				
+					'Pass back a successful change
+					Change = 1
 				End If
 				
-				pathLength = InStrRev(oDoc.FullFileName, "\", -1)
-				FileName = Mid(oDoc.FullFileName, pathLength + 1, Len(oDoc.FullFileName)-pathLength-4)
-				
-				'Format the date to make work as file name
-				dateText = Now
-				dateText = Replace(dateText, "/", "-")
-				dateText = Replace(dateText, ":", "-")
-
-				oldRuleArchive = GenerateTextFile(FileName & "-" & ruleName & "-" & dateText, "C:\temp\codeChanges\")
-				WriteText(oldRuleArchive, rule.Text)
-				
-				'Updates the rule to the next code
-				rule.Text = newText
+				Return Change
 			End If
 		Next
 	Catch
-		'TODO FULLY FLESH OUT
+		'No rules exist
 	End Try
+	
+	Return -1
 
 End Function
 
 
-Public Function ReplaceLogicTextAllRules(oDoc As Document, newText As String, oldText As String)
+Public Function ReplaceLogicPartNameAllRules(oDoc As Document, newText As String, oldText As String)
 	'''Creator: Chris Kuchman
 	'''Date Made: 6/9/2020
-	'''Date Updated: 
-	'''Description: Replaces the instances of the old text in all of the specified document's rules with the new string. Returns a 
-	'''zero if the code did not change
+	'''Date Updated: 6/12/2020 - CAK
+	'''Description: Replaces the instances of the old text in all of the specified document's rules only in 
+	'''the forms "oldtext" or "oldtext: to reduce chance of changing non file name strings and hitting variables
+	'''Returns the lowest case of the following between the two types:
+	'''1: Part Changed
+	'''0: No Change Found
+	'''-1: No Rule Found
+	'''-2: No iLogic Module Found
+
+	Result1 = ReplaceLogicTextAllRules(oDoc, """" & newText & """", """" & oldText & """")
+	Result2 = ReplaceLogicTextAllRules(oDoc, """" & newText & ":", """" & oldText & ":")
 	
-	anyChangeResult = 0
+	
+	
+	'If one fails for missing rule or module then both with
+	Return Max(Result1, Result2)
+End Function
+
+
+Public Function ReplaceLogicTextAllRules(oDoc As Document, newText As String, oldText As String) As Integer
+	'''Creator: Chris Kuchman
+	'''Date Made: 6/9/2020
+	'''Date Updated: 6/12/2020 - CAK
+	'''Description: Replaces the instances of the old text in all of the specified document's rules with the new string.
+	'''Returns:
+	'''1: Part Changed
+	'''0: No Change Found
+	'''-1: No Rule Found
+	'''-2: No iLogic Module Found
 	
 	'Checks for the iLogic Addin and the Autommaton variable
 	Try
 		iLogicAddin = ThisApplication.ApplicationAddIns.ItemById("{3bdd8d79-2179-4b11-8a5a-257b1c0263ac}")
 		iLogicAutomation = iLogicAddin.Automation
 	Catch ex As Exception
-		MsgBox("Unable to set variable iLogicAutomation or iLogic Add-in Missing.")
+		MsgBox("Unable to set variable iLogicAutomation or iLogic Add-in Missing.", "Function ReplaceLogicTextAllRules")
+		Return -2
 	End Try
 	
-	For Each rule In iLogicAutomation.Rules(oDoc)
+	Try
+		'Try to modify each rule
+		For Each rule In iLogicAutomation.Rules(oDoc)
 
-		changeResult = ReplaceLogicTextRule(oDoc, newText, oldText, rule)
-		
-		If changeResult <> 0 Then
-			anyChangeResult = 1
-		End If
-	Next
+			RuleChangeResult = ReplaceLogicTextRule(oDoc, newText, oldText, rule.Name)
+			
+			If RuleChangeResult > ChangeResult Then
+				ChangeResult = RuleChangeResult
+			End If
+		Next
+	Catch
+		'No rules found
+		ChangeResult = -1
+	End Try
 	
-	Return anyChangeResult
+	Return ChangeResult
 End Function
 
 
-Public Function ReplaceLogicTextRule(oDoc As Document, newText As String, oldText As String, ruleName As String)
+Public Function ReplaceLogicTextRule(oDoc As Document, newText As String, oldText As String, ruleName As String) As Integer
 	'''Creator: Chris Kuchman
 	'''Date Made: 6/9/2020
-	'''Date Updated: 
-	'''Description: Replaces the instances of the old text in the specified document's specified rule with the new string. Returns a 
-	'''zero if the code did not change
+	'''Date Updated: 6/12/2020 - CAK
+	'''Description: Replaces the instances of the old text in the specified document's specified rule with the new string.
+	'''Returns:
+	'''1: Part Changed
+	'''0: No Change Found
+	'''-1: No Rule Found
+	'''-2: No iLogic Module Found
 
 	'Gets code string
 	oldCode = GetLogicText(oDoc, ruleName)
@@ -400,46 +448,36 @@ Public Function ReplaceLogicTextRule(oDoc As Document, newText As String, oldTex
 	'Replaces the text in the string
 	newCode = Replace(oldCode, oldText, newText)
 
-	'TODO can make only do if text changed
-	'Sets the cdoe of the rule to the new text
-	SetLogicText(oDoc, ruleName, newCode) 
+	'Sets the code of the rule to the new text
+	Outcome = SetLogicText(oDoc, ruleName, newCode)
 	
-	If oldCode = "" Then
-		outcome = 0
-	Else
-		outcome = String.Compare(oldCode, newCode)
-	End If
-	
-	Return outcome
+	Return Outcome
 End Function
 
 
-Public Function ReplaceLogicPartName(oDoc As Document, newText As String, oldText As String, ruleName As String)
-	'''Creator: Chris Kuchman
-	'''Date Made: 6/9/2020
-	'''Date Updated: 
-	'''Description: Replaces the instances of the old text in the specified document's specified rule with the new string. Returns a 
-	'''zero if the code did not change. TODO
-	
-	'Gets code string
-	oldCode = GetLogicText(oDoc, ruleName)
-
-	'Replaces the text in the string
-	newCode = Replace(oldCode, """" & oldText & """", """" & newText & """")
-	newCode = Replace(newCode, """" & oldText & ":", """" & newText & ":")
-
-	'TODO can make only do if text changed
-	'Sets the cdoe of the rule to the new text
-	SetLogicText(oDoc, ruleName, newCode) 
-	
-	If oldCode = "" Then
-		outcome = 0
-	Else
-		outcome = String.Compare(oldCode, newCode)
-	End If
-	
-	Return outcome
-End Function
+'Public Function ReplaceLogicPartName(oDoc As Document, newText As String, oldText As String, ruleName As String)
+'	'''Creator: Chris Kuchman
+'	'''Date Made: 6/9/2020
+'	'''Date Updated: 
+'	'''Description: Replaces the instances of the old text in the specified document's specified rule with the new string.
+'	'''Returns:
+'	'''1: Part Changed
+'	'''0: No Change Found
+'	'''-1: No Rule Found
+'	'''-2: No iLogic Module Found
+'	
+'	'Gets code string
+'	oldCode = GetLogicText(oDoc, ruleName)
+'
+'	'Replaces the text in the string
+'	newCode = Replace(oldCode, """" & oldText & """", """" & newText & """")
+'	newCode = Replace(newCode, """" & oldText & ":", """" & newText & ":")
+'
+'	'Sets the code of the rule to the new text
+'	Outcome = SetLogicText(oDoc, ruleName, newCode) 
+'	
+'	Return Outcome
+'End Function
 
 
 Public Function ReplaceFrontText(text As String, oldSection As String, newSection As String) As String
