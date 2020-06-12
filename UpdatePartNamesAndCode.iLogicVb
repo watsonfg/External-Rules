@@ -31,19 +31,17 @@ Sub Main()
 	CodeChangeError = ""
 
 
-	'Get list of all subpart names
-	Dim refDocNames As List(Of String) = GetRefDocList(oDoc)
+	'Get list of all subpart documents
+	Dim refDocs As List(Of Document) = GetRefDocList(oDoc)
+	
+	'Add the top level to the list
+	refDocs.Add(oDoc)
 	
 	'Store all changed file names
 	Dim changedFileNames As List(Of String) = New List(Of String)()
 
-	'''Update the part names in the assembly
-
 	'Go over each unique assembly or part in assembly
-	For Each refDocName As String In refDocNames
-
-		'Get document of part/assembly
-		Dim refDoc As Document = GetDocument(refDocName)
+	For Each refDoc As Document In refDocs
 	
 		'Get the part name
 		partName = refDoc.PropertySets.Item("Design Tracking Properties").Item("Part Number").Value
@@ -60,7 +58,6 @@ Sub Main()
 		If (refDoc.FullFileName Like "*\CMN\*" Or refDoc.FullFileName Like "*-FX.ipt") Then
 			IgnoredTextHDW = IgnoredTextHDW & partName & vbCrLf
 
-
 		'Check if the Part Name and File Name do not match
 		Else
 
@@ -76,7 +73,6 @@ Sub Main()
 					IgnoredTextStartText = IgnoredTextStartText & "Ignored (Start text Doesn't match passed value): "& vbTab & partName & vbCrLf
 				Else
 
-
 					refDoc.PropertySets.Item("Design Tracking Properties").Item("Part Number").Value = NewName
 					ChangedText = ChangedText & "Edited: " & partName & vbTab & vbTab & "Changed to: " & newName
 					
@@ -91,15 +87,8 @@ Sub Main()
 		End If
 	Next
 	
-	
-	'''Update the code to reflect the part names changed
-	refDocNames.Add(oDoc.FullDocumentName)
-	
 	'Go over each unique assembly or part in assembly
-	For Each refDocName As String In refDocNames
-
-		'Get document of part/assembly
-		Dim refDoc As Document = GetDocument(refDocName)
+	For Each refDoc As Document In refDocs
 	
 		For Each newFN As String In changedFileNames
 		
@@ -173,53 +162,86 @@ Public Function GetDocument(fullDocName As String) As Document
 	Return oDoc
 End Function
 
+
+Public Function GetDocumentFromOccurence(occ As ComponentOccurrence) As Document
+	'''Creator: Chris Kuchman
+	'''Date Made: 6/9/2020
+	'''Date Updated: 
+	'''Description: Gets the document of the same name as the passed in occurence.
+	'''If it fails to find it already loaded into Inventor (by being open or unsuppressed)
+	'''it will try to open the file.
+	
+	Dim oDoc As Document
+	
+	Try
+		'Try to access document, will fail if not visible (open or in open assembly unsuppressed)
+		oDoc = occ.ReferencedDocumentDescriptor.ReferencedDocument()
+	Catch
+		
+		Try
+			'Check if the part is suppressed, if so then toggle it to 
+			ActiveSuppressed = occ.Suppressed()
+		
+			If ActiveSuppressed = True Then
+				occ.Unsuppress()
+				occ.Suppress(True)
+			End If
+			
+			'Try to open file to gain access, see WARNING
+			oDoc = ThisApplication.Documents.Open(occ.ReferencedDocumentDescriptor.FullDocumentName)
+		Catch
+			MsgBox("Failed to open " & fullDocName)
+		End Try
+	End Try
+	
+	Return oDoc
+End Function
+
+
+Public Function GetRefDocList(oDoc As AssemblyDocument) As List(Of Document)
+	'''Creator: Chris Kuchman
+	'''Date Made: 6/9/2020
+	'''Date Updated: 
+	'''Description: Takes in a assembly document and returns a list of all unique assemblies
+	'''and parts documents that are present, not including the passed in document.
+
+	'Make list to store documents
+	Dim refDocs As List(Of Document) = New List(Of Document)()
+
+	'Check each occurence in specified document
+	For Each occ As ComponentOccurrence In oDoc.ComponentDefinition.Occurrences
+		Try
+
+			'If the list doesn't have the document yet then add it
+			If (refDocs.Contains(GetDocumentFromOccurence(occ)) = False) Then
+				refDocs.Add(GetDocumentFromOccurence(occ))
+			End If
+
+			'If the occurence is a assembly then add all its occurences to the list to check
+			If occ.DefinitionDocumentType = DocumentTypeEnum.kAssemblyDocumentObject Then
+				Dim refDoc As Document = GetDocumentFromOccurence(occ)
+
+				refDocs.AddRange(GetRefDocList(refDoc))
+			End If
+		Catch
+			MsgBox("Failed to get " & occ.ReferencedDocumentDescriptor.FullDocumentName & " in function GetRefDocList")
+		End Try
+	Next
+
+	'Return list of unique occurences documents found
+	Return refDocs
+End Function
+
 '
-'Public Function GetDocumentFromOccurence(occ As ComponentOccurrence) As Document
+'Public Function GetRefDocList(oDoc As AssemblyDocument) As List(Of String)
 '	'''Creator: Chris Kuchman
 '	'''Date Made: 6/9/2020
 '	'''Date Updated: 
-'	'''Description: Gets the document of the same name as the passed in occurence.
-'	'''If it fails to find it already loaded into Inventor (by being open or unsuppressed)
-'	'''it will try to open the file.
-'	
-'	Dim oDoc As Document
-'	
-'	'Check if the part is suppressed, if so then toggle it to 
-'	ActiveSuppressed = occ.Suppressed()
-'
-'	If ActiveSuppressed = True Then
-'		occ.Unsuppress()
-'		occ.Suppress(True)
-'	End If
-'	
-'	'Get the name of the document (includes the LOD text)
-'	Dim refDocName As String = occ.ReferencedDocumentDescriptor.FullDocumentName
-'	
-'	Try
-'		'Try to access document, will fail if not visible (open or in open assembly unsuppressed)
-'		oDoc = ThisApplication.Documents.ItemByName(fullDocName)
-'	Catch
-'		Try
-'			'Try to open file to gain access, see WARNING
-'			oDoc = ThisApplication.Documents.Open(fullDocName)
-'		Catch
-'			MsgBox("Failed to open " & fullDocName)
-'		End Try
-'	End Try
-'	
-'	Return oDoc
-'End Function
-
-
-'Public Function GetRefDocList(oDoc As AssemblyDocument) As List(Of Document)
-'	'''Creator: Chris Kuchman
-'	'''Date Made: 6/9/2020
-'	'''Date Updated: 
-'	'''Description: Takes in a assembly document and returns a list of all unique assemblies and parts documents that 
+'	'''Description: Takes in a assembly document and returns a list of all unique assemblies and parts names that 
 '	'''are present. This will cause Inventor to open all suppressed parts to get access to the complete list.
 '
-'	'Make list to store documents
-'	Dim refDocs As List(Of Document) = New List(Of Document)()
+'	'Make list to store document names (not documents!)
+'	Dim refDocs As List(Of String) = New List(Of String)()
 '
 '	'Check each occurence in specified document
 '	For Each occ As ComponentOccurrence In oDoc.ComponentDefinition.Occurrences
@@ -250,47 +272,6 @@ End Function
 '	'Return list of unique occurences found
 '	Return refDocs
 'End Function
-
-
-Public Function GetRefDocList(oDoc As AssemblyDocument) As List(Of String)
-	'''Creator: Chris Kuchman
-	'''Date Made: 6/9/2020
-	'''Date Updated: 
-	'''Description: Takes in a assembly document and returns a list of all unique assemblies and parts names that 
-	'''are present. This will cause Inventor to open all suppressed parts to get access to the complete list.
-
-	'Make list to store document names (not documents!)
-	Dim refDocs As List(Of String) = New List(Of String)()
-
-	'Check each occurence in specified document
-	For Each occ As ComponentOccurrence In oDoc.ComponentDefinition.Occurrences
-	
-		'Check if the part is suppressed, if so then toggle it to 
-		ActiveSuppressed = occ.Suppressed()
-	
-		If ActiveSuppressed = True Then
-			occ.Unsuppress()
-			occ.Suppress(True)
-		End If
-	
-		'Get the name of the document (includes the LOD text)
-		Dim refDocName As String = occ.ReferencedDocumentDescriptor.FullDocumentName
-
-		'If the list doesn't have the file yet then add it
-		If (refDocs.Contains(refDocName) = False) Then
-			refDocs.Add(refDocName)
-		End If
-
-		'If the occurence is a assembly then add all its occurences to the list to check
-		If occ.DefinitionDocumentType = DocumentTypeEnum.kAssemblyDocumentObject Then
-			Dim refDoc As Document = GetDocument(refDocName)
-			refDocs.AddRange(getRefDocList(refDoc))
-		End If
-	Next
-
-	'Return list of unique occurences found
-	Return refDocs
-End Function
 
 
 Public Function GetLogicText(oDoc As Document, ruleName As String) As String
