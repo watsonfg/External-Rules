@@ -1,0 +1,549 @@
+﻿' <FireOthersImmediately>False</FireOthersImmediately>
+
+Sub Main()
+	'Try to open document as assembly type
+	Dim oDoc As AssemblyDocument = ThisDoc.Document
+	replaceText = GenerateTextFile("ReplaceText")
+	
+	'confirm that the text to be changed is recorded properly
+	confirmChange = MessageBox.Show("Have you saved out the files already as the updated names?", "Confirm Choice",MessageBoxButtons.YesNo, MessageBoxIcon.Question)
+	If confirmChange = vbNo
+		Exit Sub
+	End If
+
+	'Determine what should be replaced
+	oldText = InputBox("What string of the part name would you like to replace (MUST BE START OF PARTNAME)", "Text to Remove", "", MessageBoxIcon.Information)
+	newText = InputBox("What would you like to replace it with?", "Text to Add", "", MessageBoxIcon.Information)
+	
+	'confirm that the text to be changed is recorded properly
+	confirmChange = MessageBox.Show("Are you SURE you want to replace " & oldText & " with " & newText, "Confirm Choice",MessageBoxButtons.YesNo, MessageBoxIcon.Question)
+	If confirmChange = vbNo
+		Exit Sub
+	End If
+
+	'Generate text blocks for the final results
+	IgnoredTextPN = ""
+	IgnoredTextStartText = ""
+	IgnoredTextHDW = ""
+	ChangedText = ""
+	
+	CodeChangeText = ""
+	CodeChangeError = ""
+
+
+	'Get list of all subpart names
+	Dim refDocNames As List(Of String) = GetRefDocList(oDoc)
+	
+	'Store all changed file names
+	Dim changedFileNames As List(Of String) = New List(Of String)()
+
+	'''Update the part names in the assembly
+
+	'Go over each unique assembly or part in assembly
+	For Each refDocName As String In refDocNames
+
+		'Get document of part/assembly
+		Dim refDoc As Document = GetDocument(refDocName)
+	
+		'Get the part name
+		partName = refDoc.PropertySets.Item("Design Tracking Properties").Item("Part Number").Value
+		
+		'Get the file name (without extension)
+		filePathName = refDoc.FullFileName
+		pathLength = InStrRev(filePathName, "\", -1)
+		newFileName = Mid(filePathName, pathLength + 1, Len(filePathName)-pathLength-4)
+
+		'Generate new part name to use
+		newName = ReplaceFrontText(partName, oldText, newText)
+
+		'Check if the part is HDW or a FX
+		If (refDoc.FullFileName Like "*\CMN\*" Or refDoc.FullFileName Like "*-FX.ipt") Then
+			IgnoredTextHDW = IgnoredTextHDW & partName & vbCrLf
+
+
+		'Check if the Part Name and File Name do not match
+		Else
+
+			'Record fileName to update in Code		
+			changedFileNames.Add(newFileName)
+			
+			If Not newName = newFileName Then
+				IgnoredTextPN = IgnoredTextPN & "New PN: " & newName & vbTab & "FN: " & newFileName & vbCrLf
+
+			Else
+				'If a blank file name was passed then passed in starting value didn't match
+				If NewName = "" Then
+					IgnoredTextStartText = IgnoredTextStartText & "Ignored (Start text Doesn't match passed value): "& vbTab & partName & vbCrLf
+				Else
+
+
+					refDoc.PropertySets.Item("Design Tracking Properties").Item("Part Number").Value = NewName
+					ChangedText = ChangedText & "Edited: " & partName & vbTab & vbTab & "Changed to: " & newName
+					
+					'Add warning for those that go over the 15 character frontier limit
+					If Len(NewName) > 15 Then
+						ChangedText = ChangedText & vbTab & "Warning: PN longer that 15 characters" & vbCrLf	
+					Else
+						ChangedText = ChangedText & vbCrLf
+					End If
+				End If
+			End If
+		End If
+	Next
+	
+	
+	'''Update the code to reflect the part names changed
+	refDocNames.Add(oDoc.FullDocumentName)
+	
+	'Go over each unique assembly or part in assembly
+	For Each refDocName As String In refDocNames
+
+		'Get document of part/assembly
+		Dim refDoc As Document = GetDocument(refDocName)
+	
+		For Each newFN As String In changedFileNames
+		
+			'Get Hypothetical old name
+			oldFN = ReplaceFrontText(newFN, newText, oldText)
+			'CodeChangeText = CodeChangeText & "Trying to change " & oldFN & " to " & newFN & " in " & refDoc.FullFileName & ": "
+			
+			If oldFN = "" Then
+				CodeChangeText = CodeChangeText & "Ignored (Start text Doesn't match passed value):" & "for " & oldFN & " to " & newFN & " in " & refDoc.FullFileName & vbCrLf
+			Else
+				
+				result = ReplaceLogicPartName(refDoc, newFN, oldFN, "PROCESS")
+				result = result + ReplaceLogicPartName(refDoc, newFN, oldFN, "VALIDATE")
+				result = result + ReplaceLogicPartName(refDoc, newFN, oldFN, "DRAWING")
+				
+				If result = 0 Then
+					CodeChangeText = CodeChangeText & "No Change--- " & "for " & oldFN & " to " & newFN & " in " & refDoc.FullFileName & vbCrLf
+				Else
+					CodeChangeText = CodeChangeText & "Code Changed " & "for " & oldFN & " to " & newFN & " in " & refDoc.FullFileName & vbCrLf
+				End If
+				
+				'Reset Value
+				result = 0
+				
+			End If
+		Next
+	Next
+	
+
+	WriteText(replaceText, "------Changed Parts-------")
+	WriteText(replaceText, ChangedText, 1)
+	WriteText(replaceText, "------Ignored Parts-------")
+	WriteText(replaceText, "Reason: Changed Part Name Doesn't Match File Name")
+	WriteText(replaceText, IgnoredTextPN, 1)
+	WriteText(replaceText, "Reason: Start Text Doesn't Match Passed Value")
+	WriteText(replaceText, IgnoredTextStartText, 1)
+	WriteText(replaceText, "Reason: HDW or FX part")
+	WriteText(replaceText, IgnoredTextHDW, 1)
+	WriteText(replaceText, "------Changed Code-------")
+	WriteText(replaceText, CodeChangeText, 1)
+
+	openTextFile(replaceText)
+End Sub
+
+
+Public Function GetDocument(fullDocName As String) As Document
+	'''Creator: Chris Kuchman
+	'''Date Made: 6/9/2020
+	'''Date Updated: 
+	'''Description: Gets the document of the same name as the passed in document name.
+	'''If it fails to find it already loaded into Inventor (by being open or unsuppressed)
+	'''it will try to open the file.
+	'''WARNING: If the document was last opened in another project, inventor will automatically
+	'''look for that one. The part must be opening in the correct project (through unsupressing it
+	'''in a assembly it is in or ?????)
+	
+	Dim oDoc As Document
+	
+	Try
+		'Try to access document, will fail if not visible (open or in open assembly unsuppressed)
+		oDoc = ThisApplication.Documents.ItemByName(fullDocName)
+	Catch
+		Try
+			'Try to open file to gain access, see WARNING
+			oDoc = ThisApplication.Documents.Open(fullDocName)
+		Catch
+			MsgBox("Failed to open " & fullDocName)
+		End Try
+	End Try
+	
+	Return oDoc
+End Function
+
+'
+'Public Function GetDocumentFromOccurence(occ As ComponentOccurrence) As Document
+'	'''Creator: Chris Kuchman
+'	'''Date Made: 6/9/2020
+'	'''Date Updated: 
+'	'''Description: Gets the document of the same name as the passed in occurence.
+'	'''If it fails to find it already loaded into Inventor (by being open or unsuppressed)
+'	'''it will try to open the file.
+'	
+'	Dim oDoc As Document
+'	
+'	'Check if the part is suppressed, if so then toggle it to 
+'	ActiveSuppressed = occ.Suppressed()
+'
+'	If ActiveSuppressed = True Then
+'		occ.Unsuppress()
+'		occ.Suppress(True)
+'	End If
+'	
+'	'Get the name of the document (includes the LOD text)
+'	Dim refDocName As String = occ.ReferencedDocumentDescriptor.FullDocumentName
+'	
+'	Try
+'		'Try to access document, will fail if not visible (open or in open assembly unsuppressed)
+'		oDoc = ThisApplication.Documents.ItemByName(fullDocName)
+'	Catch
+'		Try
+'			'Try to open file to gain access, see WARNING
+'			oDoc = ThisApplication.Documents.Open(fullDocName)
+'		Catch
+'			MsgBox("Failed to open " & fullDocName)
+'		End Try
+'	End Try
+'	
+'	Return oDoc
+'End Function
+
+
+'Public Function GetRefDocList(oDoc As AssemblyDocument) As List(Of Document)
+'	'''Creator: Chris Kuchman
+'	'''Date Made: 6/9/2020
+'	'''Date Updated: 
+'	'''Description: Takes in a assembly document and returns a list of all unique assemblies and parts documents that 
+'	'''are present. This will cause Inventor to open all suppressed parts to get access to the complete list.
+'
+'	'Make list to store documents
+'	Dim refDocs As List(Of Document) = New List(Of Document)()
+'
+'	'Check each occurence in specified document
+'	For Each occ As ComponentOccurrence In oDoc.ComponentDefinition.Occurrences
+'	
+'		'Check if the part is suppressed, if so then toggle it to 
+'		ActiveSuppressed = occ.Suppressed()
+'	
+'		If ActiveSuppressed = True Then
+'			occ.Unsuppress()
+'			occ.Suppress(True)
+'		End If
+'	
+'		'Get the name of the document (includes the LOD text)
+'		Dim refDocName As String = occ.ReferencedDocumentDescriptor.FullDocumentName
+'
+'		'If the list doesn't have the file yet then add it
+'		If (refDocs.Contains(refDocName) = False) Then
+'			refDocs.Add(refDocName)
+'		End If
+'
+'		'If the occurence is a assembly then add all its occurences to the list to check
+'		If occ.DefinitionDocumentType = DocumentTypeEnum.kAssemblyDocumentObject Then
+'			Dim refDoc As Document = GetDocument(refDocName)
+'			refDocs.AddRange(getRefDocList(refDoc))
+'		End If
+'	Next
+'
+'	'Return list of unique occurences found
+'	Return refDocs
+'End Function
+
+
+Public Function GetRefDocList(oDoc As AssemblyDocument) As List(Of String)
+	'''Creator: Chris Kuchman
+	'''Date Made: 6/9/2020
+	'''Date Updated: 
+	'''Description: Takes in a assembly document and returns a list of all unique assemblies and parts names that 
+	'''are present. This will cause Inventor to open all suppressed parts to get access to the complete list.
+
+	'Make list to store document names (not documents!)
+	Dim refDocs As List(Of String) = New List(Of String)()
+
+	'Check each occurence in specified document
+	For Each occ As ComponentOccurrence In oDoc.ComponentDefinition.Occurrences
+	
+		'Check if the part is suppressed, if so then toggle it to 
+		ActiveSuppressed = occ.Suppressed()
+	
+		If ActiveSuppressed = True Then
+			occ.Unsuppress()
+			occ.Suppress(True)
+		End If
+	
+		'Get the name of the document (includes the LOD text)
+		Dim refDocName As String = occ.ReferencedDocumentDescriptor.FullDocumentName
+
+		'If the list doesn't have the file yet then add it
+		If (refDocs.Contains(refDocName) = False) Then
+			refDocs.Add(refDocName)
+		End If
+
+		'If the occurence is a assembly then add all its occurences to the list to check
+		If occ.DefinitionDocumentType = DocumentTypeEnum.kAssemblyDocumentObject Then
+			Dim refDoc As Document = GetDocument(refDocName)
+			refDocs.AddRange(getRefDocList(refDoc))
+		End If
+	Next
+
+	'Return list of unique occurences found
+	Return refDocs
+End Function
+
+
+Public Function GetLogicText(oDoc As Document, ruleName As String) As String
+	'''Creator: Chris Kuchman
+	'''Date Made: 6/9/2020
+	'''Date Updated: 
+	'''Description: Returns a string of the rule code matching the name specified in the document passed in. If the rule name does not match
+	'''any rules in the document then it returns a blank string.
+	
+	'Checks for the iLogic Addin and the Autommaton variable
+	Try
+		iLogicAddin = ThisApplication.ApplicationAddIns.ItemById("{3bdd8d79-2179-4b11-8a5a-257b1c0263ac}")
+		iLogicAutomation = iLogicAddin.Automation
+	Catch ex As Exception
+		MsgBox("Unable to set variable iLogicAutomation or iLogic Add-in Missing.")
+	End Try
+	
+	logicText = ""
+	
+	'Checks all rules in the document
+	Try
+		For Each rule In iLogicAutomation.Rules(oDoc)
+		
+			'If the rule name matches the one specified
+			If rule.Name = ruleName Then
+				logicText = rule.Text
+			End If
+		Next
+	Catch
+		'Skip if fails to find any rules
+	End Try
+	
+	Return logicText
+End Function
+
+
+Public Function SetLogicText(oDoc As Document, ruleName As String, newText As String)
+	'''Creator: Chris Kuchman
+	'''Date Made: 6/9/2020
+	'''Date Updated: 
+	'''Description: Sets the code of the specified drawings rule to the passed in string. A archive of the previous rule text will be archived onto 
+	'''the users computer in case of error.
+	
+	
+	'Checks for the iLogic Addin and the Autommaton variable
+	Try
+		iLogicAddin = ThisApplication.ApplicationAddIns.ItemById("{3bdd8d79-2179-4b11-8a5a-257b1c0263ac}")
+		iLogicAutomation = iLogicAddin.Automation
+	Catch ex As Exception
+		MsgBox("Unable to set variable iLogicAutomation or iLogic Add-in Missing.")
+	End Try
+	
+	Try
+		'Checks the rules of the document for the specified one
+		For Each rule In iLogicAutomation.Rules(oDoc)
+			If rule.Name = ruleName Then
+				
+				'Archives the older code 
+				'Check if folder exists else make it
+				If System.IO.Directory.Exists("C:\temp\codeChanges") = False Then
+					System.IO.Directory.CreateDirectory("C:\temp\codeChanges")
+				End If
+				
+				pathLength = InStrRev(oDoc.FullFileName, "\", -1)
+				FileName = Mid(oDoc.FullFileName, pathLength + 1, Len(oDoc.FullFileName)-pathLength-4)
+				
+				'Format the date to make work as file name
+				dateText = Now
+				dateText = Replace(dateText, "/", "-")
+				dateText = Replace(dateText, ":", "-")
+
+				oldRuleArchive = GenerateTextFile(FileName & "-" & ruleName & "-" & dateText, "C:\temp\codeChanges\")
+				WriteText(oldRuleArchive, rule.Text)
+				
+				'Updates the rule to the next code
+				rule.Text = newText
+			End If
+		Next
+	Catch
+		'TODO FULLY FLESH OUT
+	End Try
+
+End Function
+
+
+Public Function ReplaceLogicTextAllRules(oDoc As Document, newText As String, oldText As String)
+	'''Creator: Chris Kuchman
+	'''Date Made: 6/9/2020
+	'''Date Updated: 
+	'''Description: Replaces the instances of the old text in all of the specified document's rules with the new string. Returns a 
+	'''zero if the code did not change
+	
+	anyChangeResult = 0
+	
+	'Checks for the iLogic Addin and the Autommaton variable
+	Try
+		iLogicAddin = ThisApplication.ApplicationAddIns.ItemById("{3bdd8d79-2179-4b11-8a5a-257b1c0263ac}")
+		iLogicAutomation = iLogicAddin.Automation
+	Catch ex As Exception
+		MsgBox("Unable to set variable iLogicAutomation or iLogic Add-in Missing.")
+	End Try
+	
+	For Each rule In iLogicAutomation.Rules(oDoc)
+
+		changeResult = ReplaceLogicTextRule(oDoc, newText, oldText, rule)
+		
+		If changeResult <> 0 Then
+			anyChangeResult = 1
+		End If
+	Next
+	
+	Return anyChangeResult
+End Function
+
+
+Public Function ReplaceLogicTextRule(oDoc As Document, newText As String, oldText As String, ruleName As String)
+	'''Creator: Chris Kuchman
+	'''Date Made: 6/9/2020
+	'''Date Updated: 
+	'''Description: Replaces the instances of the old text in the specified document's specified rule with the new string. Returns a 
+	'''zero if the code did not change
+
+	'Gets code string
+	oldCode = GetLogicText(oDoc, ruleName)
+
+	'Replaces the text in the string
+	newCode = Replace(oldCode, oldText, newText)
+
+	'TODO can make only do if text changed
+	'Sets the cdoe of the rule to the new text
+	SetLogicText(oDoc, ruleName, newCode) 
+	
+	If oldCode = "" Then
+		outcome = 0
+	Else
+		outcome = String.Compare(oldCode, newCode)
+	End If
+	
+	Return outcome
+End Function
+
+
+Public Function ReplaceLogicPartName(oDoc As Document, newText As String, oldText As String, ruleName As String)
+	'''Creator: Chris Kuchman
+	'''Date Made: 6/9/2020
+	'''Date Updated: 
+	'''Description: Replaces the instances of the old text in the specified document's specified rule with the new string. Returns a 
+	'''zero if the code did not change. TODO
+	
+	'Gets code string
+	oldCode = GetLogicText(oDoc, ruleName)
+
+	'Replaces the text in the string
+	newCode = Replace(oldCode, """" & oldText & """", """" & newText & """")
+	newCode = Replace(newCode, """" & oldText & ":", """" & newText & ":")
+
+	'TODO can make only do if text changed
+	'Sets the cdoe of the rule to the new text
+	SetLogicText(oDoc, ruleName, newCode) 
+	
+	If oldCode = "" Then
+		outcome = 0
+	Else
+		outcome = String.Compare(oldCode, newCode)
+	End If
+	
+	Return outcome
+End Function
+
+
+Public Function ReplaceFrontText(text As String, oldSection As String, newSection As String) As String
+	'''Creator: Chris Kuchman
+	'''Date Made: 6/9/2020
+	'''Date Updated: 
+	'''Description: Replaces the front text of a string with a new set of text, if the front text does not
+	'''match the specified old substring then a blank string is passed back.
+	
+	If Left(text, Len(oldSection)) = oldSection Then
+		result = newSection & Right(text, Len(text) - Len(oldSection))
+	Else
+		result = ""
+	End If
+
+	Return result
+End Function
+
+Public Function GenerateTextFile(fileName, Optional fileLocation = "C:\temp\") As String
+	'''Creator: Chris Kuchman
+	'''Date Made: 6/9/2020
+	'''Date Updated: 
+	'''Description: Generates a text file of the passed in name, in the file location specified.
+	'''If the file already exists then the text file is cleared out
+
+	'Specifies file name to be written to
+	textFile = fileLocation & fileName & ".txt"
+
+	'Creates & Clears out a text file
+	System.IO.File.WriteAllText(fileLocation & fileName & ".txt",String.Empty)
+	
+	Return textFile
+End Function
+
+
+Public Function OpenTextFile(fileName)
+	'''Creator: Chris Kuchman
+	'''Date Made: 6/9/2020
+	'''Date Updated: 
+	'''Description: Opens up the text file to the screen, if it does not exist then a msgbox will pop up instead	
+	
+	'Check if the file exists
+	If System.IO.File.Exists(fileName) = True Then
+		'Open the file
+		Process.Start(fileName)
+	Else
+		MsgBox("Error in opening file " & fileName)
+	End If
+End Function
+
+
+Public Function WriteText(File, Text, Optional EndWithNewLines = 2)
+	'''Creator: Chris Kuchman
+	'''Date Made: 1/27/2016
+	'''Date Updated: 2/6/2016 - CAK
+	'''Description: Used to write text to a text file. The first arguement is the specific text file you
+	'''are writing to and the second is the string you want to pass. If you want the string to be broken up into seperate
+	'''lines then add a \n to the string line. By default the string will add 2 new lines between each new string added,
+	'''but if you want to add less or more new lines then pass a third argument with the number of new lines generated.
+	'''(0 will just append the line to the last line)
+
+	'Sets a stream to pass the text into the notepad file (filestreams only do btyes so we need a stream writer to convert)
+	Dim fs As New System.IO.FileStream(File, System.IO.FileMode.Append, System.IO.FileAccess.Write)
+	Dim theLog As New System.IO.StreamWriter(fs)
+	
+	'Breaks the string up into new lines
+	Dim StringArray() As String = Split(Text, "\n ")
+	
+	'For each split string, write to the file and add a new line (except for the very last line)
+	For i As Integer = 0 To StringArray.Length - 1
+		If i < StringArray.Length - 1  Then
+			theLog.WriteLine(StringArray(i))
+		Else
+			theLog.Write(StringArray(i)) 'Write will not add a new line by default like WriteLine
+		End If
+	Next
+	
+	Dim j As Integer = 0
+	
+	'Add the number of new lines passed into the optional parameter, will loop once if the default value is used
+	While EndWithNewLines > j
+		theLog.WriteLine()
+		j += 1
+	End While
+	​
+	'Closes the stream
+	theLog.Close()
+End Function
