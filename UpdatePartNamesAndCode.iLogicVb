@@ -79,8 +79,8 @@ Sub Main()
 	IgnoredCodeHDW = ""
 	ChangedCode = ""
 	
-	'Store all changed file names
-	Dim ChangedFileNames As List(Of String) = New List(Of String)()
+	'Store all changed files
+	Dim ChangedDocs As List(Of Document) = New List(Of Document)()
 	
 	'Go over each unique assembly or part in assembly
 	For Each refDoc As Document In refDocs
@@ -97,30 +97,36 @@ Sub Main()
 			IgnoredCodeStartText = IgnoredCodeStartText & FileName & vbCrLf
 
 		Else
-			ChangedFileNames.Add(FileName)
+			ChangedDocs.Add(refDoc)
 		End If
 	Next
-	
-	
+
+
 	'Go over each unique assembly or part in assembly and update the code
 	For Each refDoc As Document In refDocs
 
-		For Each NewFileName As String In ChangedFileNames
-		
-			'Get hypothetical old name
-			OldFileName = ReplaceFrontText(NewFileName, newText, oldText)
+		If (refDoc.FullFileName Like "*\CMN\*" Or refDoc.FullFileName Like "*-FX.ipt") Then
+			'Ignore if HWD or FX levels code
+		Else
+			For Each ChangedDoc As Document In ChangedDocs
+					NewFileName = GetFileNameNoPathForDoc(ChangedDoc)
 
-			result = ReplaceLogicPartNameAllRules(refDoc, NewFileName, OldFileName)
-			
-			If result <= 0 Then
-				ChangedCode = ChangedCode & "No Change--- " & "for " & OldFileName & " to " & NewFileName & " in " & refDoc.FullFileName & vbCrLf
-			Else
-				ChangedCode = ChangedCode & "Code Changed " & "for " & OldFileName & " to " & NewFileName & " in " & refDoc.FullFileName & vbCrLf
-			End If
-			
-			'Reset Value
-			result = 0
-		Next
+
+					'Get hypothetical old name
+					OldFileName = ReplaceFrontText(NewFileName, newText, oldText)
+		
+					result = ReplaceLogicPartNameAllRules(refDoc, NewFileName, OldFileName)
+					
+					If result <= 0 Then
+						ChangedCode = ChangedCode & "No Change--- " & "for " & OldFileName & " to " & NewFileName & " in " & refDoc.FullFileName & vbCrLf
+					Else
+						ChangedCode = ChangedCode & "Code Changed " & "for " & OldFileName & " to " & NewFileName & " in " & refDoc.FullFileName & vbCrLf
+					End If
+					
+					'Reset Value
+					result = 0
+			Next
+		End If
 	Next
 	
 	
@@ -455,31 +461,6 @@ Public Function ReplaceLogicTextRule(oDoc As Document, newText As String, oldTex
 End Function
 
 
-'Public Function ReplaceLogicPartName(oDoc As Document, newText As String, oldText As String, ruleName As String)
-'	'''Creator: Chris Kuchman
-'	'''Date Made: 6/9/2020
-'	'''Date Updated: 
-'	'''Description: Replaces the instances of the old text in the specified document's specified rule with the new string.
-'	'''Returns:
-'	'''1: Part Changed
-'	'''0: No Change Found
-'	'''-1: No Rule Found
-'	'''-2: No iLogic Module Found
-'	
-'	'Gets code string
-'	oldCode = GetLogicText(oDoc, ruleName)
-'
-'	'Replaces the text in the string
-'	newCode = Replace(oldCode, """" & oldText & """", """" & newText & """")
-'	newCode = Replace(newCode, """" & oldText & ":", """" & newText & ":")
-'
-'	'Sets the code of the rule to the new text
-'	Outcome = SetLogicText(oDoc, ruleName, newCode) 
-'	
-'	Return Outcome
-'End Function
-
-
 Public Function ReplaceFrontText(text As String, oldSection As String, newSection As String) As String
 	'''Creator: Chris Kuchman
 	'''Date Made: 6/9/2020
@@ -495,6 +476,7 @@ Public Function ReplaceFrontText(text As String, oldSection As String, newSectio
 
 	Return result
 End Function
+
 
 Public Function GenerateTextFile(fileName, Optional fileLocation = "C:\temp\") As String
 	'''Creator: Chris Kuchman
