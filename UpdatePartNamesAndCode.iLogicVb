@@ -20,6 +20,9 @@ Sub Main()
 	If confirmChange = vbNo
 		Exit Sub
 	End If
+	
+	'Replace New Parts
+	ReplacePartsLog = ReplacePartsAsm(oDoc, oldText, newText)
 
 	'Update Part names
 	PartNameUpdateLog = UpdatePartNamesAsm(oDoc, oldText, newText)
@@ -28,6 +31,7 @@ Sub Main()
 	CodeUpdateLog = UpdateCodeAsm(oDoc, oldText, newText)
 	
 	'Write out to text file
+	WriteText(replaceText, ReplacePartsLog)
 	WriteText(replaceText, PartNameUpdateLog)
 	WriteText(replaceText, CodeUpdateLog)
 
@@ -35,22 +39,90 @@ Sub Main()
 End Sub
 
 
+Public Function ReplacePartsAsm(oDoc As AssemblyDocument, oldText As String, newText As String) As String
+	'''Creator: Chris Kuchman
+	'''Date Made: 6/17/2020
+	'''Date Updated: 
+	'''Description: Takes in a assembly document and checks all subordinate parts to see if there is a file present in the same folder as
+	'''the top level assembly that contains a file name that matches the replaced front of the string.
+	'''Example: A case where oldText=BAD and newText=GOOD. A subordinate part called BADPART.iam is checked to see if a GOODPART.iam lives
+	'''in the same folder as the passed in assembly. If so, the part is replaced and then this is process is reran with GOODPART.iam as the 
+	'''assembly (checking all their children). If the files were named PARTBAD.iam and PARTGOOD.iam, no change would occur and the assembly would be skipped.
+	'''Returns: A string log of the successful and failed updates
+	
+	'Generate text blocks for the final results
+	ReplacedText = ""
+	IgnoredNoFileText = ""
+	SubOutputText = ""
+	
+	'Determine the documents path
+	pathLength = InStrRev(oDoc.FullFileName, "\", -1)
+	oDocPath = Left(oDoc.FullFileName, PathLength)
+	
+	'Check each occurence in specified document
+	For Each occ As ComponentOccurrence In oDoc.ComponentDefinition.Occurrences
+
+			'Check to see if the alternative part is present
+			'Get file name with extension
+			refDoc = GetDocumentFromOccurence(occ)
+			fileName = GetFileNameNoPathForDoc(refDoc, True)
+
+			'Generate possible new part name
+			newName = ReplaceFrontText(fileName, oldText, newText)
+			
+			'Check if new string was built successfully
+			If Not newName = "" Then
+
+				'Check if partname exists at level
+				Try
+					occ.Replace(oDocPath & newName, False)
+					ReplacedText = ReplacedText & newName & vbCrLf
+					
+					'If the part is a assembly then recursively call this function
+					If occ.DefinitionDocumentType = DocumentTypeEnum.kAssemblyDocumentObject Then
+						SubOutputText = ReplacePartsAsm(GetDocumentFromOccurence(occ), oldText, newText)
+					End If
+				Catch
+					IgnoredNoFileText = IgnoredNoFileText & newName & vbCrLf
+				End Try
+			End If
+	Next
+	
+	'Generate output string log
+	OutputText = OutputText & "------Assembly Checked------" & vbCrLf
+	OutputText = OutputText & GetFileNameNoPathForDoc(oDoc, True) & vbCrLf
+	OutputText = OutputText & "------Replaced Files-------" & vbCrLf
+	OutputText = OutputText & ReplacedText & vbCrLf
+	OutputText = OutputText & "------Ignored Files-------" & vbCrLf
+	OutputText = OutputText & "Reason: No File Found" & vbCrLf
+	OutputText = OutputText & IgnoredNoFileText & vbCrLf
+	OutputText = OutputText & SubOutputText & vbCrLf
+
+	Return OutputText
+End Function
+
+
+
 Public Function UpdatePartNamesAsm(oDoc As AssemblyDocument, oldText As String, newText As String) As String
 	'''Creator: Chris Kuchman
 	'''Date Made: 6/17/2020
 	'''Date Updated: 
-	'''Description: Takes in a assembly document and checks all subordinate parts and assemblies to find cases where the start
+	'''Description: Takes in a assembly document and checks all subordinate parts and assemblies (and theirs) to find cases where the start
 	'''of the part name should be updated. To recieve an update the following must be true for a part:
 	'''1. The old part name starts with the old text string (will not update middle or right part name changes)
 	'''2. The replaced new part name matches the file name of the part
-	'''3. TODO: The part name exists in the same folder as the top level assembly
+	'''3. The part name exists in the same folder as the top level assembly
 	'''Returns: A string log of the successful and failed updates
 	
 	'Generate text blocks for the final results
 	IgnoredTextPN = ""
 	IgnoredTextStartText = ""
-	IgnoredTextHDW = ""
+	IgnoredTextPath = ""
 	ChangedText = ""
+	
+	'Determine the documents path
+	pathLength = InStrRev(oDoc.FullFileName, "\", -1)
+	oDocPath = Left(oDoc.FullFileName, PathLength)
 
 	'Get list of all subpart documents
 	Dim refDocs As List(Of Document) = GetRefDocList(oDoc)
@@ -64,15 +136,19 @@ Public Function UpdatePartNamesAsm(oDoc As AssemblyDocument, oldText As String, 
 		'Get the part name
 		partName = refDoc.PropertySets.Item("Design Tracking Properties").Item("Part Number").Value
 		
-		'Get file name without extension
+		'Get file name with and without extension
 		FileName = GetFileNameNoPathForDoc(refDoc)
+		
+		'Get folder location of file
+		pathLength = InStrRev(refDoc.FullFileName, "\", -1)
+		refDocPath = Left(refDoc.FullFileName, PathLength)
 
 		'Generate new part name to use
 		newName = ReplaceFrontText(partName, oldText, newText)
 
-		'Check if the part is HDW or a FX
-		If (refDoc.FullFileName Like "*\CMN\*" Or refDoc.FullFileName Like "*-FX.ipt") Then
-			IgnoredTextHDW = IgnoredTextHDW & partName & vbCrLf
+		'Check if the part is in the same folder as the top level
+		If Not oDocPath = refDocPath Then
+			IgnoredTextPath = IgnoredTextPath & partName & vbCrLf
 		
 		'Check if the New Name could not be generated as it didn't find a valid new name
 		ElseIf newName = "" Then
@@ -107,8 +183,8 @@ Public Function UpdatePartNamesAsm(oDoc As AssemblyDocument, oldText As String, 
 	OutputText = OutputText & IgnoredTextStartText & vbCrLf
 	OutputText = OutputText & "Reason: Changed Part Name Doesn't Match File Name" & vbCrLf
 	OutputText = OutputText & IgnoredTextPN & vbCrLf
-	OutputText = OutputText & "Reason: HDW or FX part" & vbCrLf
-	OutputText = OutputText & IgnoredTextHDW & vbCrLf
+	OutputText = OutputText & "Reason: Not in same folder as top level" & vbCrLf
+	OutputText = OutputText & IgnoredTextPath & vbCrLf
 
 	Return OutputText
 End Function
@@ -118,16 +194,22 @@ Public Function UpdateCodeAsm(oDoc As AssemblyDocument, oldText As String, newTe
 	'''Creator: Chris Kuchman
 	'''Date Made: 6/17/2020
 	'''Date Updated: 
-	'''Description: Takes in a assembly document and checks all subordinate parts and assemblies to find cases where the start
-	'''of the part name should be updated in the code. To recieve an update the following must be true for a part:
-	'''1. TODO
+	'''Description: Takes in a assembly document and checks all subordinate parts and assemblies (and theirs) to find cases where the start
+	'''of the part name should be updated in the code (all rules). To have code updated the following must be true:
+	'''1. The code to edit takes the form "OldFileName" or "OldFileName:
+	'''2. The file name that is being updated and the file that is having codde changed are both in the same fodler as the top level asm
+	'''3. The old file name can be sucessfully reproduced by by just swapping the start of the filenames newText with the oldText
 	'''Returns: A string log of the successful and failed updates
 	
 	'Generate text blocks for the final results
 	IgnoredCodeStartText = ""
-	IgnoredCodeHDW = ""
+	IgnoredCodePath = ""
 	ChangedCode = ""
 	
+	'Determine the documents path
+	pathLength = InStrRev(oDoc.FullFileName, "\", -1)
+	oDocPath = Left(oDoc.FullFileName, PathLength)
+
 	'Get list of all subpart documents
 	Dim refDocs As List(Of Document) = GetRefDocList(oDoc)
 	
@@ -137,15 +219,19 @@ Public Function UpdateCodeAsm(oDoc As AssemblyDocument, oldText As String, newTe
 	'Store all changed files
 	Dim ChangedDocs As List(Of Document) = New List(Of Document)()
 	
-	'Go over each unique assembly or part in assembly
+	'Go over each unique assembly or part in assembly to check for parts to change
 	For Each refDoc As Document In refDocs
 
 		'Get file name without extension
 		FileName = GetFileNameNoPathForDoc(refDoc)
 		
-		'Check if the part is HDW or a FX
-		If refDoc.FullFileName Like "*\CMN\*" Or refDoc.FullFileName Like "*-FX.ipt" Then
-			IgnoredCodeHDW = IgnoredCodeHDW & refDoc.FullFileName & vbCrLf
+		'Get folder location of file
+		pathLength = InStrRev(refDoc.FullFileName, "\", -1)
+		refDocPath = Left(refDoc.FullFileName, PathLength)
+		
+		'Check if the part is not in the same folder as the top level part
+		If Not oDocPath = refDocPath Then
+			IgnoredCodePath = IgnoredCodePath & refDoc.FullFileName & vbCrLf
 
 		'If the file does not match the new string start then ignore
 		ElseIf Not FileName.StartsWith(newText) Then
@@ -160,26 +246,30 @@ Public Function UpdateCodeAsm(oDoc As AssemblyDocument, oldText As String, newTe
 	'Go over each unique assembly or part in assembly and update the code
 	For Each refDoc As Document In refDocs
 
-		If (refDoc.FullFileName Like "*\CMN\*" Or refDoc.FullFileName Like "*-FX.ipt") Then
-			'Ignore if HWD or FX levels code
+		'Get folder location of file
+		pathLength = InStrRev(refDoc.FullFileName, "\", -1)
+		refDocPath = Left(refDoc.FullFileName, PathLength)
+
+		If Not oDocPath = refDocPath Then
+			'Ignore if not in the top levels folder
 		Else
 			For Each ChangedDoc As Document In ChangedDocs
-					NewFileName = GetFileNameNoPathForDoc(ChangedDoc)
 
-
-					'Get hypothetical old name
-					OldFileName = ReplaceFrontText(NewFileName, newText, oldText)
-		
-					result = ReplaceLogicPartNameAllRules(refDoc, NewFileName, OldFileName)
-					
-					If result <= 0 Then
-						ChangedCode = ChangedCode & "No Change--- " & "for " & OldFileName & " to " & NewFileName & " in " & refDoc.FullFileName & vbCrLf
-					Else
-						ChangedCode = ChangedCode & "Code Changed " & "for " & OldFileName & " to " & NewFileName & " in " & refDoc.FullFileName & vbCrLf
-					End If
-					
-					'Reset Value
-					result = 0
+				'Get hypothetical old name
+				NewFileName = GetFileNameNoPathForDoc(ChangedDoc)
+				OldFileName = ReplaceFrontText(NewFileName, newText, oldText)
+	
+				result = ReplaceLogicPartNameAllRules(refDoc, NewFileName, OldFileName)
+				
+				If result <= 0 Then
+					'No change made, text for debugging
+					'ChangedCode = ChangedCode & "No Change--- " & "for " & OldFileName & " to " & NewFileName & " in " & refDoc.FullFileName & vbCrLf
+				Else
+					ChangedCode = ChangedCode & "Code Changed " & "for " & OldFileName & " to " & NewFileName & " in " & refDoc.FullFileName & vbCrLf
+				End If
+				
+				'Reset Value
+				result = 0
 			Next
 		End If
 	Next
@@ -191,8 +281,8 @@ Public Function UpdateCodeAsm(oDoc As AssemblyDocument, oldText As String, newTe
 	OutputText = OutputText & "Reason: Start Text Doesn't Match Current File Name" & vbCrLf
 	OutputText = OutputText & "Tried to Change " & oldText & " to " & newText & vbCrLf
 	OutputText = OutputText & IgnoredCodeStartText & vbCrLf
-	OutputText = OutputText & "Reason: HDW or FX part" & vbCrLf
-	OutputText = OutputText & IgnoredCodeHDW & vbCrLf
+	OutputText = OutputText & "Reason: Not in same folder as top level" & vbCrLf
+	OutputText = OutputText & IgnoredCodePath & vbCrLf
 
 	Return OutputText
 End Function
@@ -219,7 +309,7 @@ Public Function GetDocument(fullDocName As String) As Document
 			'Try to open file to gain access, see WARNING
 			oDoc = ThisApplication.Documents.Open(fullDocName)
 		Catch
-			MsgBox("Failed to open " & fullDocName, "Function GetDocument")
+			MessageBox.Show("Failed to open " & fullDocName, "Function GetDocument")
 		End Try
 	End Try
 	
@@ -231,31 +321,23 @@ Public Function GetDocumentFromOccurence(occ As ComponentOccurrence) As Document
 	'''Creator: Chris Kuchman
 	'''Date Made: 6/12/2020
 	'''Date Updated: 
-	'''Description: Gets the document of the same name as the passed in occurence.
-	'''If it fails to find it already loaded into Inventor (by being open or unsuppressed)
-	'''it will try to open the file.
+	'''Description: Gets the document of the same name as the passed in occurence by opening it in the background.
 	
 	Dim oDoc As Document
 	
 	Try
-		'Try to access document, will fail if not visible (open or in open assembly unsuppressed)
-		oDoc = occ.ReferencedDocumentDescriptor.ReferencedDocument()
+		'Check if the part is suppressed, if so then toggle it to 
+		ActiveSuppressed = occ.Suppressed()
+	
+		If ActiveSuppressed = True Then
+			occ.Unsuppress()
+			occ.Suppress(True)
+		End If
+		
+		'Try to open file to gain access
+		oDoc = ThisApplication.Documents.Open(occ.ReferencedDocumentDescriptor.FullDocumentName, False)
 	Catch
-		
-		Try
-			'Check if the part is suppressed, if so then toggle it to 
-			ActiveSuppressed = occ.Suppressed()
-		
-			If ActiveSuppressed = True Then
-				occ.Unsuppress()
-				occ.Suppress(True)
-			End If
-			
-			'Try to open file to gain access, see WARNING
-			oDoc = ThisApplication.Documents.Open(occ.ReferencedDocumentDescriptor.FullDocumentName)
-		Catch
-			MsgBox("Failed to open " & fullDocName, "Function GetDocumentFromOccurence")
-		End Try
+		MsgBox("Failed to open " & fullDocName, "Function GetDocumentFromOccurence")
 	End Try
 	
 	Return oDoc
@@ -288,7 +370,7 @@ Public Function GetRefDocList(oDoc As AssemblyDocument) As List(Of Document)
 				refDocs.AddRange(GetRefDocList(refDoc))
 			End If
 		Catch
-			MsgBox("Failed to get " & occ.ReferencedDocumentDescriptor.FullDocumentName, "Function GetRefDocList")
+			MessageBox.Show("Failed to get " & occ.ReferencedDocumentDescriptor.FullDocumentName, "Function GetRefDocList")
 		End Try
 	Next
 
@@ -319,7 +401,7 @@ Public Function GetFileNameNoPathForDoc(oDoc As Document, Optional IncludeExt As
 			FileName = Left(FileName, Len(FileName) - 4)
 		End If
 	Catch
-		MsgBox("Failed to get file name", "Function GetFileNameNoPathForDoc")
+		MessageBox.Show("Failed to get file name", "Function GetFileNameNoPathForDoc")
 	End Try
 
 	Return FileName
@@ -338,7 +420,7 @@ Public Function GetLogicText(oDoc As Document, ruleName As String) As String
 		iLogicAddin = ThisApplication.ApplicationAddIns.ItemById("{3bdd8d79-2179-4b11-8a5a-257b1c0263ac}")
 		iLogicAutomation = iLogicAddin.Automation
 	Catch ex As Exception
-		MsgBox("Unable to set variable iLogicAutomation or iLogic Add-in Missing.", "Function GetLogicText")
+		MessageBox.Show("Unable to set variable iLogicAutomation or iLogic Add-in Missing.", "Function GetLogicText")
 		Return ""
 	End Try
 	
@@ -435,8 +517,6 @@ Public Function ReplaceLogicPartNameAllRules(oDoc As Document, newText As String
 	Result1 = ReplaceLogicTextAllRules(oDoc, """" & newText & """", """" & oldText & """")
 	Result2 = ReplaceLogicTextAllRules(oDoc, """" & newText & ":", """" & oldText & ":")
 	
-	
-	
 	'If one fails for missing rule or module then both with
 	Return Max(Result1, Result2)
 End Function
@@ -458,7 +538,7 @@ Public Function ReplaceLogicTextAllRules(oDoc As Document, newText As String, ol
 		iLogicAddin = ThisApplication.ApplicationAddIns.ItemById("{3bdd8d79-2179-4b11-8a5a-257b1c0263ac}")
 		iLogicAutomation = iLogicAddin.Automation
 	Catch ex As Exception
-		MsgBox("Unable to set variable iLogicAutomation or iLogic Add-in Missing.", "Function ReplaceLogicTextAllRules")
+		MessageBox.Show("Unable to set variable iLogicAutomation or iLogic Add-in Missing.", "Function ReplaceLogicTextAllRules")
 		Return -2
 	End Try
 	
@@ -550,7 +630,7 @@ Public Function OpenTextFile(fileName)
 		'Open the file
 		Process.Start(fileName)
 	Else
-		MsgBox("Error in opening file " & fileName)
+		MessageBox.Show("Error in opening file " & fileName)
 	End If
 End Function
 
