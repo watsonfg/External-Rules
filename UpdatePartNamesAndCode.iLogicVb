@@ -21,6 +21,31 @@ Sub Main()
 		Exit Sub
 	End If
 
+	'Update Part names
+	PartNameUpdateLog = UpdatePartNamesAsm(oDoc, oldText, newText)
+
+	'Update file names in code
+	CodeUpdateLog = UpdateCodeAsm(oDoc, oldText, newText)
+	
+	'Write out to text file
+	WriteText(replaceText, PartNameUpdateLog)
+	WriteText(replaceText, CodeUpdateLog)
+
+	openTextFile(replaceText)
+End Sub
+
+
+Public Function UpdatePartNamesAsm(oDoc As AssemblyDocument, oldText As String, newText As String) As String
+	'''Creator: Chris Kuchman
+	'''Date Made: 6/17/2020
+	'''Date Updated: 
+	'''Description: Takes in a assembly document and checks all subordinate parts and assemblies to find cases where the start
+	'''of the part name should be updated. To recieve an update the following must be true for a part:
+	'''1. The old part name starts with the old text string (will not update middle or right part name changes)
+	'''2. The replaced new part name matches the file name of the part
+	'''3. TODO: The part name exists in the same folder as the top level assembly
+	'''Returns: A string log of the successful and failed updates
+	
 	'Generate text blocks for the final results
 	IgnoredTextPN = ""
 	IgnoredTextStartText = ""
@@ -72,13 +97,43 @@ Sub Main()
 			End If
 		End If
 	Next
+	
+	'Generate output string log
+	OutputText = OutputText & "------Changed Part Names-------" & vbCrLf
+	OutputText = OutputText & ChangedText & vbCrLf
+	OutputText = OutputText & "------Ignored Part Names-------" & vbCrLf
+	OutputText = OutputText & "Reason: Start Text Doesn't Match Passed Value" & vbCrLf
+	OutputText = OutputText & "Tried to Change " & oldText & " to " & newText & vbCrLf
+	OutputText = OutputText & IgnoredTextStartText & vbCrLf
+	OutputText = OutputText & "Reason: Changed Part Name Doesn't Match File Name" & vbCrLf
+	OutputText = OutputText & IgnoredTextPN & vbCrLf
+	OutputText = OutputText & "Reason: HDW or FX part" & vbCrLf
+	OutputText = OutputText & IgnoredTextHDW & vbCrLf
+
+	Return OutputText
+End Function
 
 
-	'Get the code names to change
+Public Function UpdateCodeAsm(oDoc As AssemblyDocument, oldText As String, newText As String) As String
+	'''Creator: Chris Kuchman
+	'''Date Made: 6/17/2020
+	'''Date Updated: 
+	'''Description: Takes in a assembly document and checks all subordinate parts and assemblies to find cases where the start
+	'''of the part name should be updated in the code. To recieve an update the following must be true for a part:
+	'''1. TODO
+	'''Returns: A string log of the successful and failed updates
+	
+	'Generate text blocks for the final results
 	IgnoredCodeStartText = ""
 	IgnoredCodeHDW = ""
 	ChangedCode = ""
 	
+	'Get list of all subpart documents
+	Dim refDocs As List(Of Document) = GetRefDocList(oDoc)
+	
+	'Add the top level to the list
+	refDocs.Add(oDoc)	
+
 	'Store all changed files
 	Dim ChangedDocs As List(Of Document) = New List(Of Document)()
 	
@@ -129,29 +184,18 @@ Sub Main()
 		End If
 	Next
 	
-	
-	'Write out to text file
-	WriteText(replaceText, "------Changed Parts-------")
-	WriteText(replaceText, ChangedText, 1)
-	WriteText(replaceText, "------Ignored Parts-------")
-	WriteText(replaceText, "Reason: Start Text Doesn't Match Passed Value", 1)
-	WriteText(replaceText, "Tried to Change " & oldText & " to " & newText)
-	WriteText(replaceText, IgnoredTextStartText, 1)
-	WriteText(replaceText, "Reason: Changed Part Name Doesn't Match File Name")
-	WriteText(replaceText, IgnoredTextPN, 1)
-	WriteText(replaceText, "Reason: HDW or FX part")
-	WriteText(replaceText, IgnoredTextHDW, 1)
-	WriteText(replaceText, "------Changed Code-------")
-	WriteText(replaceText, ChangedCode, 1)
-	WriteText(replaceText, "------Ignored Code-------")
-	WriteText(replaceText, "Reason: Start Text Doesn't Match Current File Name", 1)
-	WriteText(replaceText, "Tried to Change " & oldText & " to " & newText)
-	WriteText(replaceText, IgnoredCodeStartText, 1)
-	WriteText(replaceText, "Reason: HDW or FX part")
-	WriteText(replaceText, IgnoredCodeHDW, 1)
+	'Generate output string log
+	OutputText = OutputText & "------Changed Code-------" & vbCrLf
+	OutputText = OutputText & ChangedCode & vbCrLf
+	OutputText = OutputText & "------Ignored Code-------" & vbCrLf
+	OutputText = OutputText & "Reason: Start Text Doesn't Match Current File Name" & vbCrLf
+	OutputText = OutputText & "Tried to Change " & oldText & " to " & newText & vbCrLf
+	OutputText = OutputText & IgnoredCodeStartText & vbCrLf
+	OutputText = OutputText & "Reason: HDW or FX part" & vbCrLf
+	OutputText = OutputText & IgnoredCodeHDW & vbCrLf
 
-	openTextFile(replaceText)
-End Sub
+	Return OutputText
+End Function
 
 
 Public Function GetDocument(fullDocName As String) As Document
