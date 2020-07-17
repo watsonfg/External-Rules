@@ -1,0 +1,1237 @@
+﻿Sub Main()
+'['Text File Initialization
+'This text file records if the rule completes and is used as the final file shown
+System.IO.File.WriteAllText("c:\temp\ReviewFile.txt",String.Empty)		'Creates & Clears out a text file to show results
+TextFileReview = "c:\temp\ReviewFile.txt"										'Specifies file name that Review rules write to
+']
+
+
+'['Body
+TopLevelDoc = ThisApplication.ActiveDocument
+
+'Asks the user for the type of review that they want to do
+Dim ReviewTypeArray As New ArrayList
+ReviewTypeArray.Add("Designer")
+ReviewTypeArray.Add("Reviewer")
+ReviewTypeArray.Add("Final Reviewer")
+ReviewTypeArray.Add("Studio Designer")
+ReviewTypeArray.Add("Studio Reviewer")
+ReviewTypeArray.Add("Studio Final Reviewer")
+
+ReviewType = InputListBox("Choose a Review Type", ReviewTypeArray, "Pending",Title := "Select Review Type", ListName := "Review Types")
+
+If ReviewType Like "*Studio*" Then
+	InvalidStudio = True
+
+	While InvalidStudio
+		StudioNum = InputBox("Type in the studio number (S##-####).", "Studio Number", "")
+		
+		If StudioNum Like "S##-####" Then 
+			InvalidStudio = False
+		ElseIf StudioNum = "" Then 
+			Exit Sub
+		Else
+			MessageBox.Show(StudioNum & "is not a valid studio, please re-enter or hit cancel to end review.", ThisDoc.FileName(True))
+		End If
+	End While
+Else
+	StudioNum = ""
+End If
+
+RecursiveReview(TopLevelDoc, TextFileReview, ReviewType, StudioNum)
+']
+
+
+'['Close File
+WriteText(TextFileReview, "The End.")
+
+If System.IO.File.Exists("C:\temp\ReviewFile.txt") = True Then
+    Process.Start("C:\temp\ReviewFile.txt")
+Else
+    MsgBox("Error in Result file. Good luck figuring out Chris's code to fix it")
+End If
+']
+End Sub
+
+
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+''' General Review Functions ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+
+Function RecursiveReview(oDoc As Document, TextFileReview As String, ReviewType As String, StudioNum As String)
+'''Creator: Chris Kuchman
+'''Date Made: 5/17/2018
+'''Description: This function takes in a model, text file to write to, the type of review, and the studio 
+'''number (which is blank if none) and runs the review function on this level and all Sub-levels.
+'''Returns the review text to display.
+
+Dim oEachRefDoc As Document
+
+For Each oEachRefDoc In oDoc.ReferencedDocuments
+	' Obtain the DisplayName of the PropertySet
+	If oEachRefDoc.FullFileName Like "*\CMN\*" Or oEachRefDoc.FullFileName Like "*-FX.ipt" Then
+		'Do not review hardware
+	Else
+		'Recrusive call of review
+		RecursiveReview(oEachRefDoc, TextFileReview, ReviewType, StudioNum)
+	End If
+Next
+
+'Run the review on current level
+ReviewResults = ReviewText & PartTypeSpecificReview(oDoc, ReviewType, StudioNum)
+
+If ReviewResults = "" Then
+	'Do not show parts with no issues
+Else
+	ReviewText = ReviewText & oDoc.FullFileName & vbCrLf
+	ReviewText = ReviewText & "--------------------------------------" & vbCrLf
+	ReviewText = ReviewText & ReviewResults
+	ReviewText = ReviewText & vbCrLf & vbCrLf
+End If
+
+WriteText(TextFileReview, ReviewText, 0)
+
+End Function
+
+
+Function PartTypeSpecificReview(oDoc As Document, ReviewType As String, StudioNum As String)
+'''Creator: Chris Kuchman
+'''Date Made: 5/17/2018
+'''Description: This function takes in a model, the type of review, and the studio number (which is blank if none)
+'''and determines what type of part that it is. Runs the part specific function. Returns the review text to display.
+
+PartPath = oDoc.FullFileName
+PartName = oDoc.PropertySets.Item("Design Tracking Properties").Item("Part Number").Value
+
+If PartPath Like "*\CMN\*" Then
+	ReviewText = ReviewText & HardwareReview(oDoc, ReviewType, StudioNum)
+ElseIf PartName Like "*CUTTOP" Then
+	ReviewText = ReviewText & TopReview(oDoc, ReviewType, StudioNum)
+ElseIf PartName Like "*TSTR*" Then
+	ReviewText = ReviewText & PanelReview(oDoc, ReviewType, StudioNum)	
+ElseIf PartName Like "*-AS" Then
+	SteelAsmPart = False
+
+	Try
+		If oDoc.PropertySets.Item("Inventor User Defined Properties").Item("MATTYP").Value Like "*[MPB]*" Then
+			'Likely a wood assembly part
+		Else
+			SteelAsmPart = True
+		End If
+	Catch
+		SteelAsmPart = True
+	End Try
+		
+	If SteelAsmPart Then
+		ReviewText = ReviewText & SteelAsmReview(oDoc, ReviewType, StudioNum)
+	End If
+	
+ElseIf PartName Like "*-PP" Then
+	ReviewText = ReviewText & PowderReview(oDoc, ReviewType, StudioNum)
+ElseIf PartName Like "*-WD" Then
+	ReviewText = ReviewText & WeldReview(oDoc, ReviewType, StudioNum)
+ElseIf PartName Like "*-PM" Then
+	ReviewText = ReviewText & PemReview(oDoc, ReviewType, StudioNum)
+ElseIf PartName Like "*-CF" Then
+    ReviewText = ReviewText & CutFabricReview(oDoc, ReviewType, StudioNum)
+ElseIf PartName Like "*-CP" Then
+	If oDoc.ComponentDefinition.Type = 150995200 Then  'number definition type of a sheet metal file type
+		ReviewText = ReviewText & SheetMetalReview(oDoc, ReviewType, StudioNum)
+	End If
+ElseIf PartName Like "*-CS" Then
+    ReviewText = ReviewText & CutSheetReview(oDoc, ReviewType, StudioNum)
+ElseIf PartName Like "*-CT" Then
+	ReviewText = ReviewText & CutTubeReview(oDoc)
+End If
+
+Return ReviewText
+End Function
+
+
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+''' Part Type Review Functions ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+
+Function GeneralReview(oDoc As Document, ReviewType As String, StudioNum As String)
+'''Creator: Chris Kuchman
+'''Date Made: 3/4/2020
+'''Description: This function takes in a model, the type of review, and the studio number (which is blank if none)
+'''and runs general review functions. Returns the review text to display.
+
+'Runs the review functions on the part passed in
+ReviewText = ReviewText & PartNameLengthCheck(oDoc)
+ReviewText = ReviewText & PartNameStructureCheck(oDoc)
+ReviewText = ReviewText & AuthorDesignerCheck(oDoc, ReviewType, StudioNum)
+ReviewText = ReviewText & RevCheck(oDoc)
+ReviewText = ReviewText & ProjectCheck(oDoc)
+ReviewText = ReviewText & ReferenceCheck(oDoc)
+
+If ReviewType = "Designer" Or (ReviewType = "Studio Designer" And oDoc.FullFileName Like "*" & StudioNum & "*") Then
+	ReviewText = ReviewText & DateCheck(oDoc)
+End If
+
+Return ReviewText
+End Function
+
+
+Function HardwareReview(oDoc As Document, ReviewType As String, StudioNum As String)
+'''Creator: Chris Kuchman
+'''Date Made: 3/4/2020
+'''Description: This function takes in a model and runs hardware specific functions.
+'''Returns the review text to display.
+
+ReviewText = ReviewText & PartNameLengthCheck(oDoc)
+ReviewText = ReviewText & HardwarePartNameERPCheck(oDoc)
+
+Return ReviewText
+End Function
+
+
+Function TopReview(oDoc As Document, ReviewType As String, StudioNum As String)
+'''Creator: Chris Kuchman
+'''Date Made: 5/17/2018
+'''Description: This function takes in a model and runs top specific functions.
+'''Returns the review text to display.
+
+ReviewText = ReviewText & GeneralReview(oDoc, ReviewType, StudioNum)
+ReviewText = ReviewText & iPropertyExistenceCheck(oDoc, {"TOPOPT1","TOPOPT2","TOPOPT3","TOPOPT4","MATFIN","EDGFIN"})
+ReviewText = ReviewText & OPTCheck(oDoc, {"TOPOPT1","TOPOPT2","TOPOPT3","TOPOPT4","POWEROPT","GROMOPT1","GROMOPT2"})
+ReviewText = ReviewText & EDGSEQCheck(oDoc)
+ReviewText = ReviewText & ExportCheck(oDoc)
+EDGTYPArray = EDGTYPCheck(oDoc)	'Brings back two values, (0) is the EDGTYP or MISSING if not present, (1) is the reviewtext 
+ReviewText = ReviewText & EDGTYPArray(1)
+
+'Do checks that require the EDGTYP
+If EDGTYPArray(0) <> "MISSING" Then
+	ReviewText = ReviewText & TopERPCheck(oDoc, EDGTYPArray(0))
+	ReviewText = ReviewText & EDGTHKCheck(oDoc, EDGTYPArray(0))
+	ReviewText = ReviewText & TopMATTYPCheck(oDoc, EDGTYPArray(0))
+End If
+
+'Do check if a studio review and this is a studio part
+If ReviewType Like "*Studio*" And oDoc.FullFileName Like "*" & StudioNum & "*" Then
+	ReviewText = ReviewText & StudioOPTCheck(oDoc)
+End If
+
+Return ReviewText
+End Function
+
+
+Function PanelReview(oDoc As Document, ReviewType As String, StudioNum As String)
+'''Creator: Chris Kuchman
+'''Date Made: 5/17/2018
+'''Description: This function takes in a model and runs panel specific functions.
+'''Returns the review text to display.
+
+ReviewText = ReviewText & GeneralReview(oDoc, ReviewType, StudioNum)
+ReviewText = ReviewText & iPropertyExistenceCheck(oDoc, {"PANELOPT1","PANELOPT2","MATFIN"})
+ReviewText = ReviewText & OPTCheck(oDoc, {"PANELOPT1","PANELOPT2","AVOPT"})
+ReviewText = ReviewText & EDGSEQCheck(oDoc)
+ReviewText = ReviewText & EDGTHKCheck(oDoc, "Q")
+ReviewText = ReviewText & PanelERPCheck(oDoc)
+ReviewText = ReviewText & ExportCheck(oDoc)
+
+'Do check if a studio review and this is a studio part
+If ReviewType Like "*Studio*" And oDoc.FullFileName Like "*" & StudioNum & "*" Then
+	ReviewText = ReviewText & StudioOPTCheck(oDoc)
+End If
+
+Return ReviewText
+End Function
+
+
+Function SteelAsmReview(oDoc As Document, ReviewType As String, StudioNum As String)
+'''Creator: Chris Kuchman
+'''Date Made: 5/17/2018
+'''Description: This function takes in a model, the type of review, and the studio number (which is blank if none)
+'''and runs steel assembly specific functions. Returns the review text to display.
+
+ReviewText = ReviewText & GeneralReview(oDoc, ReviewType, StudioNum)
+ReviewText = ReviewText & DescriptionCheck(oDoc)
+ReviewText = ReviewText & ERPCheck(oDoc, {"620","630","950","945","80"})
+ReviewText = ReviewText & OPTCheck(oDoc, {"LEGOPT"})
+ReviewText = ReviewText & PrintCheck(oDoc)
+ReviewText = ReviewText & NETCheck(oDoc)
+ReviewText = ReviewText & PowderOvenCheck(oDoc)
+
+If ReviewType Like "*Final Reviewer*" Then
+	ReviewText = ReviewText & PrintApprovalCheck(oDoc)
+End If
+
+Return ReviewText
+End Function
+
+
+Function PowderReview(oDoc As Document, ReviewType As String, StudioNum As String)
+'''Creator: Chris Kuchman
+'''Date Made: 5/17/2018
+'''Description: This function takes in a model, the type of review, and the studio number (which is blank if none)
+'''and runs powder specific functions. Returns the review text to display.
+
+ReviewText = ReviewText & GeneralReview(oDoc, ReviewType, StudioNum)
+ReviewText = ReviewText & DescriptionCheck(oDoc)
+ReviewText = ReviewText & iPropertyExistenceCheck(oDoc, {"POWOPT1","POWOPT2"})
+ReviewText = ReviewText & ERPCheck(oDoc, {"600","620","630","700","750","760","770","790","950","945","80"})
+ReviewText = ReviewText & OPTCheck(oDoc, {"POWOPT1","POWOPT2"})
+ReviewText = ReviewText & PrintCheck(oDoc)
+ReviewText = ReviewText & NETCheck(oDoc)
+ReviewText = ReviewText & PowderOvenCheck(oDoc)
+
+If ReviewType Like "*Final Reviewer*" Then
+	ReviewText = ReviewText & PrintApprovalCheck(oDoc)
+End If
+
+Return ReviewText
+End Function
+
+
+Function WeldReview(oDoc As Document, ReviewType As String, StudioNum As String)
+'''Creator: Chris Kuchman
+'''Date Made: 5/17/2018
+'''Description: This function takes in a model, the type of review, and the studio number (which is blank if none)
+'''and runs weld specific functions. Returns the review text to display.
+
+ReviewText = ReviewText & GeneralReview(oDoc, ReviewType, StudioNum)
+ReviewText = ReviewText & DescriptionCheck(oDoc)
+ReviewText = ReviewText & iPropertyExistenceCheck(oDoc, {"WELDOPT1","WELDOPT2"})
+ReviewText = ReviewText & ERPCheck(oDoc, {"340","390"})
+ReviewText = ReviewText & OPTCheck(oDoc, {"WELDOPT1","WELDOPT2"})
+ReviewText = ReviewText & PrintCheck(oDoc)
+ReviewText = ReviewText & NETCheck(oDoc)
+
+If ReviewType Like "*Final Reviewer*" Then
+	ReviewText = ReviewText & PrintApprovalCheck(oDoc)
+End If
+
+Return ReviewText
+End Function
+
+
+Function PemReview(oDoc As Document, ReviewType As String, StudioNum As String)
+'''Creator: Chris Kuchman
+'''Date Made: 5/17/2018
+'''Description: This function takes in a model, the type of review, and the studio number (which is blank if none)
+'''and runs pem specific functions. Returns the review text to display.
+
+ReviewText = ReviewText & GeneralReview(oDoc, ReviewType, StudioNum)
+ReviewText = ReviewText & DescriptionCheck(oDoc)
+ReviewText = ReviewText & iPropertyExistenceCheck(oDoc, {"PEMOPT1"})
+ReviewText = ReviewText & ERPCheck(oDoc, {"360","370","373","390","770","790","80"})
+ReviewText = ReviewText & OPTCheck(oDoc, {"PEMOPT1"})
+ReviewText = ReviewText & PrintCheck(oDoc)
+ReviewText = ReviewText & NETCheck(oDoc)
+
+If ReviewType Like "*Final Reviewer*" Then
+	ReviewText = ReviewText & PrintApprovalCheck(oDoc)
+End If
+
+Return ReviewText
+End Function
+
+
+Function SheetMetalReview(oDoc As Document, ReviewType As String, StudioNum As String)
+'''Creator: Chris Kuchman
+'''Date Made: 5/17/2018
+'''Description: This function takes in a model, the type of review, and the studio number (which is blank if none)
+'''and runs sheet metal specific functions. Returns the review text to display.
+
+ReviewText = ReviewText & GeneralReview(oDoc, ReviewType, StudioNum)
+ReviewText = ReviewText & DescriptionCheck(oDoc)
+ReviewText = ReviewText & iPropertyExistenceCheck(oDoc, {"DIMA","DIMB","MATTYP","SMOPT1","SMOPT2","SMOPT3"})
+ReviewText = ReviewText & ERPCheck(oDoc, {"340","360","370","373","390","620"})
+ReviewText = ReviewText & OPTCheck(oDoc, {"SMOPT1","SMOPT2","SMOPT3"})
+ReviewText = ReviewText & PrintCheck(oDoc)
+ReviewText = ReviewText & NETCheck(oDoc)
+
+If ReviewType Like "*Final Reviewer*" Then
+	ReviewText = ReviewText & PrintApprovalCheck(oDoc)
+End If
+
+Return ReviewText
+End Function
+
+
+Function CutSheetReview(oDoc As Document, ReviewType As String, StudioNum As String)
+'''Creator: Douglas Wisser
+'''Date Made: 
+'''Description: 
+'Run Cut Sheet Functions
+
+ReviewText = ReviewText & GeneralReview(oDoc, ReviewType, StudioNum)
+ReviewText = ReviewText & DescriptionCheck(oDoc)
+ReviewText = ReviewText & ERPCheck(oDoc, {"700","750","950","945","80"})
+ReviewText = ReviewText & OPTCheck(oDoc, {"CSOPT1","CSOPT2"})
+ReviewText = ReviewText & iPropertyExistenceCheck(oDoc, {"DIMA","DIMB","MATTYP","SQFT","HAND","CSOPT1","CSOPT2"})
+
+'Do check if a studio review and this is a studio part
+If ReviewType Like "*Studio*" And oDoc.FullFileName Like "*" & StudioNum & "*" Then
+	ReviewText = ReviewText & StudioOPTCheck(oDoc)
+End If
+
+Return ReviewText
+End Function
+
+
+Function CutFabricReview(oDoc As Document, ReviewType As String, StudioNum As String)
+'''Creator: Douglas Wisser
+'''Date Made: 
+'''Description: 
+'Run Cut Fabric Functions
+
+ReviewText = ReviewText & GeneralReview(oDoc, ReviewType, StudioNum)
+ReviewText = ReviewText & DescriptionCheck(oDoc)
+ReviewText = ReviewText & ERPCheck(oDoc, {"750"})
+ReviewText = ReviewText & iPropertyExistenceCheck(oDoc, {"CUTA","CUTB","FABFIN"})
+
+'Do check if a studio review and this is a studio part
+If ReviewType Like "*Studio*" And oDoc.FullFileName Like "*" & StudioNum & "*" Then
+	ReviewText = ReviewText & StudioOPTCheck(oDoc)
+End If
+
+Return ReviewText
+End Function
+
+
+Function CutTubeReview(oDoc As Document)
+'''Creator: Douglas Wisser
+'''Date Made: 
+'''Description: 
+'Run Cut Tube Functions
+
+ReviewText = ReviewText & GeneralReview(oDoc, ReviewType, StudioNum)
+ReviewText = ReviewText & DescriptionCheck(oDoc)
+ReviewText = ReviewText & ERPCheck(oDoc, {"340","360","370","390"})
+ReviewText = ReviewText & OPTCheck(oDoc, {"CTOPT1","CTOPT2"})
+ReviewText = ReviewText & iPropertyExistenceCheck(oDoc, {"LENGTH","MATTYP","MITERANGLEA","MITERANGLEB","CTOPT1","CTOPT2"})
+
+Return ReviewText
+End Function
+
+
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+''' Check Functions '''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+
+Function PartNameLengthCheck(oDoc As Document)
+'''Creator: Chris Kuchman
+'''Date Made: 5/17/2018
+'''Description: Takes in a model and checks the part name length (PCM can only take 15 char max). Returns the error text.
+
+PartName = oDoc.PropertySets.Item("Design Tracking Properties").Item("Part Number").Value
+
+If Len(PartName) > 15 Then
+	ReviewText = ReviewText & "Part Number is more than 15 characters long." & vbCrLf
+End If
+
+Return ReviewText
+End Function
+
+
+Function PartNameStructureCheck(oDoc As Document)
+'''Creator: Chris Kuchman
+'''Date Made: 3/4/2020
+'''Description: Takes in a model and checks the part name length (PCM can only take 15 char max). Returns the error text.
+
+PartName = oDoc.PropertySets.Item("Design Tracking Properties").Item("Part Number").Value
+
+'Checks first the overall form of the partname
+If PartName Like "*-*-[A-Z][A-Z]" Then
+
+	Extension = Right(PartName, 2)
+	Product = Left(PartName, InStr(PartName, "-") - 1)
+	Middle = Mid(PartName, Len(Product) + 2, Len(PartName) - Len(Extension) - Len(Product) - 2)
+	
+	If Len(Middle) > 3 Then
+		ReviewText = ReviewText & "Part Number's middle section " & Middle & " is greater than 3, can cause studio copy out issues" & vbCrLf
+	End If
+	
+Else
+	ReviewText = ReviewText & "Part Number is not in proper *-*-* form" & vbCrLf
+End If
+
+Return ReviewText
+End Function
+
+
+Function DescriptionCheck(oDoc As Document)
+'''Creator: Chris Kuchman
+'''Date Made: 5/17/2018
+'''Description: Takes in a model and checks that a Description exists and is not over the max size (30 char). Returns the error text.
+
+If Len(oDoc.PropertySets.Item("Design Tracking Properties").Item("Description").Value) > 30 Then
+	ReviewText = ReviewText & "Description is more than 30 characters long." & vbCrLf
+End If
+
+If Len(oDoc.PropertySets.Item("Design Tracking Properties").Item("Description").Value) = 0 Then
+	ReviewText = ReviewText & "Description is missing." & vbCrLf
+End If
+
+Return ReviewText
+End Function
+
+
+Function AuthorDesignerCheck(oDoc As Document, ReviewType As String, StudioNum As String)
+'''Creator: Chris Kuchman
+'''Date Made: 5/17/2018
+'''Description: This function takes in a model, the type of review, and the studio number (which is blank if none)
+'''and checks that the designer and author have been filled out and match. Returns the error text.
+
+Designer = oDoc.PropertySets.Item("Design Tracking Properties").Item("Designer").Value
+Author = oDoc.PropertySets.Item("Inventor Summary Information").Item("Author").Value
+User = ThisApplication.GeneralOptions.UserName
+
+If Designer = "" Then
+	ReviewText = ReviewText & "Designer is blank." & vbCrLf
+End If
+
+If Author = "" Then
+	ReviewText = ReviewText & "Author is blank." & vbCrLf
+End If
+
+If Designer <> Author Then
+	ReviewText = ReviewText & "Designer and Author do not match." & vbCrLf
+End If
+
+If ReviewType = "Designer" Or (ReviewType = "Studio Designer" And oDoc.PropertySets.Item("Design Tracking Properties").Item("Part Number").Value Like "*" & StudioNum & "*") Then
+	If Designer <> User Then
+		ReviewText = ReviewText & "Designer does not match your name." & vbCrLf
+	End If
+End If
+
+Return ReviewText
+End Function
+
+
+Function DateCheck(oDoc As Document)
+'''Creator: Chris Kuchman
+'''Date Made: 5/17/2018
+'''Description: Takes in a model and checks that the creation date was in the last 3 months. Returns the error text.
+
+CreationDate = oDoc.PropertySets.Item("Design Tracking Properties").Item("Creation Time").Value
+TodaysDate = Date.Now
+
+AllowableTimePass = DateDiff("d", CreationDate, TodaysDate)
+TimeLapse = 90 'three month
+ReasonableTime = True
+
+If AllowableTimePass > TimeLapse
+	ReasonableTime = False
+End If
+	
+If Not ReasonableTime Then
+	ReviewText = ReviewText & "Date is older than 3 months." & vbCrLf
+End If
+
+Return ReviewText
+End Function
+
+
+Function RevCheck(oDoc As Document)
+'''Creator: Chris Kuchman
+'''Date Made: 5/17/2018
+'''Description: Takes in a model and checks new models (less than 3 months old) or studio parts for if they have a revision of 
+'''zero. Returns the error text.
+
+CreationDate = oDoc.PropertySets.Item("Design Tracking Properties").Item("Creation Time").Value
+TodaysDate = Date.Now
+
+AllowableTimePass = DateDiff("d", CreationDate, TodaysDate)
+TimeLapse = 90 'three month
+ReasonableTime = True
+
+If AllowableTimePass > TimeLapse
+	ReasonableTime = False
+End If
+	
+If oDoc.PropertySets.Item("Inventor Summary Information").Item("Revision Number").Value <> "" And _
+oDoc.PropertySets.Item("Inventor Summary Information").Item("Revision Number").Value <> "0" Then
+	If oDoc.PropertySets.Item("Design Tracking Properties").Item("Part Number").Value Like "S##?####*" Then
+		ReviewText = ReviewText & "Studio part with neither a blank or 0 revision number." & vbCrLf
+	ElseIf ReasonableTime Then
+		ReviewText = ReviewText & "New part not on blank or 0 revision number." & vbCrLf
+	End If
+End If
+
+Return ReviewText
+End Function
+
+
+Function ProjectCheck(oDoc As Document)
+'''Creator: Chris Kuchman
+'''Date Made: 5/17/2018
+'''Description: Takes in a model and checks that the project is not blank. Returns the error text.
+
+If Not oDoc.PropertySets.Item("Design Tracking Properties").Item("Part Number").Value Like "S##?####*" And
+   oDoc.PropertySets.Item("Design Tracking Properties").Item("Project").Value = "" Then
+   	ReviewText = ReviewText & "Project is blank." & vbCrLf
+End If
+
+Return ReviewText
+End Function
+
+
+Function ReferenceCheck(oDoc As Document)
+'''Creator: Chris Kuchman
+'''Date Made: 9/25/2018
+'''Description: Takes in a model and checks that any sub-components (if a assembly) are not on reference. Returns the error text.
+
+'Only checks if the part is a assembly
+If oDoc.DocumentType = DocumentTypeEnum.kAssemblyDocumentObject Then
+	'Gets the assembly document object for the document to interact with components
+	Dim oAsmDoc As AssemblyDocument = oDoc
+	
+	Dim oCompDef As Inventor.ComponentDefinition
+	oCompDef = oAsmDoc.ComponentDefinition
+	
+	Dim oCompOcc As ComponentOccurrence
+	
+	'Increments through component occurrences (every instance of a subpart is a occurrence). Only throws an error if the part is not suppressed and also on Reference. 
+	For Each oCompOcc In oCompDef.Occurrences    
+		If Not (oCompOcc.Suppressed()) And oCompOcc.BOMStructure() = 51972 Then		'Refernce Enum integer value
+			ReviewText = ReviewText & oCompOcc.Name & " is on Reference, is that correct?" & vbCrLf
+		End If
+	Next
+End If
+
+Return ReviewText
+End Function
+
+
+Function ERPCheck(oDoc As Document, ERPAllowed As String())
+'''Creator: Chris Kuchman
+'''Date Made: 5/17/2018
+'''Description: This function is used to determine if the ERP is correct of the file type.
+
+Try
+	'Checks the ERP in the iProp against all of the ERPs listed in the ERPAllowed array
+	For i = 0 To ERPAllowed.Length - 1
+		If ERPAllowed(i) = CStr(oDoc.PropertySets.Item("Inventor User Defined Properties").Item("ERP_OPERATION").Value) Then
+			CorrectERP = True
+			Exit For
+		End If
+	Next
+	
+	If Not CorrectERP Then
+		ReviewText = ReviewText & "Not a valid ERP for this part type." & vbCrLf
+	End If
+Catch
+	ReviewText = ReviewText & "Error in ERP Check, likely missing ERP iProp" & vbCrLf
+End Try
+
+Return ReviewText
+End Function
+
+
+Function OPTCheck(oDoc As Document, OPTAllowed As String())
+'''Creator: Chris Kuchman
+'''Date Made: 5/17/2018
+'''Description: This function is used to determine if the OPT is correct of the file type.
+
+'Define custom property collection
+oCustomPropertySet = oDoc.PropertySets.Item("Inventor User Defined Properties")
+'Look at each property in the collection
+For Each oCustProp In oCustomPropertySet
+CorrectOpt = False
+	'Check to see if the iProp is a OPT
+	If oCustProp.Name Like "*OPT*" Then
+		For i = 0 To OPTAllowed.Length - 1
+			If OPTAllowed(i) = oCustProp.Name Then
+				CorrectOpt = True
+			End If
+		Next
+		If CorrectOpt = False
+			ReviewText = ReviewText & oCustProp.Name & " is not a valid OPT for this part type." & vbCrLf
+		End If
+	End If
+Next
+
+Return ReviewText
+End Function
+
+
+Function PrintCheck(oDoc As Document)
+'''Creator: Chris Kuchman
+'''Date Made: 7/31/2018
+'''Description: Takes in a model and checks that the part has a print. Returns the error text.
+
+oPath = Left(oDoc.FullFileName, (Len(oDoc.FullFileName) - 4)) & ".idw"
+
+If Not (System.IO.File.Exists(oPath)) Then
+	ReviewText = ReviewText & "No associated print." & vbCrLf
+End If
+
+Return ReviewText
+End Function
+
+
+Function PrintApprovalCheck(oDoc As Document)
+'''Creator: Chris Kuchman
+'''Date Made: 9/28/2018
+'''Description: Takes in a model and checks that the print has been reviewed. Returns the error text.
+
+oPath = Left(oDoc.FullFileName, (Len(oDoc.FullFileName) - 4)) & ".idw"
+
+If (System.IO.File.Exists(oPath)) Then
+	oPrintDoc = ThisApplication.Documents.Open(oPath,False)
+	
+	If oPrintDoc.PropertySets.Item("Design Tracking Properties").Item("Engr Approved By").Value = "" Then
+		ReviewText = ReviewText & "The print is missing the Engr Approved By" & vbCrLf
+	End If
+End If
+
+Return ReviewText
+End Function
+
+
+Function NETCheck(oDoc As Document)
+'''Creator: Chris Kuchman
+'''Date Made: 12/14/2018
+'''Description: Takes in a model and checks if the NET dimensions exist and if they match what is expected from the measure tool.
+'''Returns the Error text.
+
+Try
+	ERP = CStr(oDoc.PropertySets.Item("Inventor User Defined Properties").Item("ERP_OPERATION").Value)
+Catch
+	ReviewText = ReviewText & "Missing ERP" & vbCrLf
+End Try
+
+Try
+	LENGTH = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("LENGTH").Value
+	PresentLength = True
+Catch
+	Try
+		NETDEPTH = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("NETDEPTH").Value
+		NETHEIGHT = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("NETHEIGHT").Value
+		NETWIDTH = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("NETWIDTH").Value
+		PresentNets = True
+	Catch
+		If ERP = "600" Or ERP = "620" Or ERP = "630" Or ERP = "950" Or ERP = "945" Or ERP = "80" Then
+			ReviewText = ReviewText & "This file does not have NETs but they are used by the floor at this ERP." & vbCrLf
+		End If
+	End Try
+End Try
+
+'Sets the correct document type to get the comp def
+If oDoc.FullFileName Like "*.iam"
+	Dim specDoc As AssemblyDocument = oDoc
+	cd = specDoc.ComponentDefinition
+Else
+	Dim specDoc As PartDocument = oDoc	
+	cd = specDoc.ComponentDefinition
+End If
+
+'Gets measured size of box containing part
+NetDepthMeasure = Round((cd.RangeBox.MaxPoint.z - cd.RangeBox.MinPoint.z) / 2.54, 4)
+NetHeightMeasure = Round((cd.RangeBox.MaxPoint.y - cd.RangeBox.MinPoint.y) / 2.54, 4)
+NetWidthMeasure = Round((cd.RangeBox.MaxPoint.x - cd.RangeBox.MinPoint.x) / 2.54, 4)
+
+'The amount we roughly expect a Net to be off from a measure
+NetTolerance = 0.5
+
+
+If PresentNets Then
+	'Difference between NET calculated and NET measured
+	NetDepthDiff = NETDEPTH - NetDepthMeasure
+	NetHeightDiff = NETHEIGHT - NetHeightMeasure
+	NetWidthDiff = NETWIDTH - NetWidthMeasure
+	
+	If NetDepthDiff > NetTolerance Or NetDepthDiff < -NetTolerance Then
+		ReviewText = ReviewText & "The NETDEPTH (" & NETDEPTH & ") is " & NetDepthDiff & " different from the Measure tool (" & NetDepthMeasure & "), Is this correct? " & vbCrLf
+	End If
+	
+	If NetHeightDiff > NetTolerance Or NetHeightDiff < -NetTolerance Then
+		ReviewText = ReviewText & "The NETHEIGHT (" & NETHEIGHT & ") is " & NetHeightDiff & " different from the Measure tool (" & NetHeightMeasure & "), Is this correct? " & vbCrLf
+	End If
+	
+	If NetWidthDiff > NetTolerance Or NetWidthDiff < -NetTolerance Then
+		ReviewText = ReviewText & "The NETWIDTH (" & NETWIDTH & ") is " & NetWidthDiff & " different from the Measure tool (" & NetWidthMeasure & "), Is this correct? " & vbCrLf
+	End If
+ElseIf PresentLength Then
+	'Difference between Length calculated and Length measured
+	LengthDiff = LENGTH - MaxOfMany(NetDepthMeasure, NetHeightMeasure, NetWidthMeasure)
+	
+	If LengthDiff > NetTolerance Or LengthDiff < -NetTolerance Then
+		ReviewText = ReviewText & "The LENGTH (" & LENGTH & ") is " & LengthDiff & " different from the Measure tool (" & MaxOfMany(NetDepthMeasure, NetHeightMeasure, NetWidthMeasure) & "), Is this correct? " & vbCrLf
+	End If
+End If
+
+Return ReviewText
+End Function
+
+
+Function PowderOvenCheck(oDoc As Document) 
+'''Creator: Chris Kuchman
+'''Date Made: 7/31/2018
+'''Description: Takes in a model and checks that the NET dimensions fit inside the powder oven. Returns the error text.
+
+Try
+	LengthDim = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("LENGTH").Value
+	
+	If LengthDim > 96 Then
+		ReviewText = ReviewText & "The LENGTH dim is " & LengthDim & " which may be too long to fit into the powder oven." & vbCrLf
+	End If
+Catch
+	Try	
+		Dim NetDimensions As Double() = {oDoc.PropertySets.Item("Inventor User Defined Properties").Item("NETDEPTH").Value,
+										oDoc.PropertySets.Item("Inventor User Defined Properties").Item("NETHEIGHT").Value,
+										oDoc.PropertySets.Item("Inventor User Defined Properties").Item("NETWIDTH").Value}
+	
+		'Sorts the array from smallest to largest so that orientation doesnt matter
+		Array.Sort(NetDimensions)
+		
+		If NetDimensions(0) > 27.5 Then	'updated 12/9/16 to match other documentation
+			ReviewText = ReviewText & "The smallest NET dim is " & NetDimensions(0) & " which may be too wide to fit into the powder oven." & vbCrLf
+		End If
+		
+		If NetDimensions(1) > 56 Then
+			ReviewText = ReviewText & "The second smallest NET dim is " & NetDimensions(1) & " which may be too tall to fit into the powder oven." & vbCrLf
+		End If
+		
+		If NetDimensions(2) > 96 Then
+			ReviewText = ReviewText & "The largest NET dim is " & NetDimensions(2) & " which may be too long to fit into the powder oven." & vbCrLf
+		End If
+		
+	Catch
+		ReviewText = ReviewText & "Unable to determine if the part fits in the oven." & vbCrLf
+	End Try
+End Try
+
+Return ReviewText
+End Function
+
+
+Function EDGSEQCheck(oDoc As Document)
+'''Creator: Chris Kuchman
+'''Date Made: 7/31/2018
+'''Description: Takes in a model and checks that the edge sequence is a valid option. Returns the error text.
+
+Try
+	EDGSEQ = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("EDGSEQ").Value
+	Select Case EDGSEQ
+		Case "1A", "1A1B", "1A1BC", "1A2B", "1A2BC", "1AC", "1B", "1B1A", "1B1AC", "1B2A", "1B2AC", "1BC", "2A", "2A1B", "2A1BC", "2A2B", "2A2BC", "2AC", "2B", "2B1A", "2B1AC", "2B2A", "2B2AC", "2BC", "ALL"
+			'Valid EDGSEQ
+		Case Else
+			ReviewText = ReviewText & "EDGSEQ (" & EDGSEQ & ") is not a valid choice." & vbCrLf
+	End Select
+Catch
+	ReviewText = ReviewText & "EDGSEQ does not exist." & vbCrLf
+End Try
+
+Return ReviewText
+End Function
+
+
+Function EDGTYPCheck(oDoc As Document)
+'''Creator: Chris Kuchman
+'''Date Made: 7/31/2018
+'''Description: Takes in a model and checks that the EDGTYP is present. Returns a array with the first element being the EDGTYP if found and
+'''a "MISSING" strgin if not and the second element is the error text.
+
+ReturnArray = {"",""}
+
+Try
+	EDGTYP = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("EDGTYP").Value
+Catch
+	Try
+		EDGTYP = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("EDGPRF").Value
+	Catch
+		ReviewText = ReviewText & "Does not contain a EDGTYP or EDGPRF." & vbCrLf
+		EDGTYP = "MISSING"
+	End Try
+End Try
+
+ReturnArray(0) = EDGTYP
+ReturnArray(1) = ReviewText
+
+Return ReturnArray
+End Function
+
+
+Function ExportCheck(oDoc As Document)
+'''Creator: Chris Kuchman
+'''Date Made: 7/31/2018
+'''Description: Takes in a model and checks that the export sketch matching the iProp. Returns the error text.
+
+Try
+	Export = CStr(oDoc.PropertySets.Item("Inventor User Defined Properties").Item("Export").Value)
+	
+	'Generates a list of a sketches in the model
+	oSketches = oDoc.ComponentDefinition.Sketches
+	
+	ValidExport = False
+	For Each oSketch In oSketches
+		If oSketch.Name = Export Then
+			ValidExport = True
+		End If
+	Next
+
+	If Not ValidExport Then
+		ReviewText = ReviewText & "Export is not the name of a sketch in the model." & vbCrLf
+	End If
+Catch
+	ReviewText = ReviewText & "Missing Export iProperty." & vbCrLf
+End Try
+
+Return ReviewText
+End Function
+
+
+Function TopERPCheck(oDoc As Document, EDGTYP As String)
+'''Creator: Chris Kuchman
+'''Date Made: 7/31/2018
+'''Description: Takes in a model and the model EDGTYP and checks that the ERP is valid for a top. Returns the error text.
+
+Select Case EDGTYP
+	Case "AR", "AW", "AY", "BF", "BH", "DB", "DC", "DD", "DR", "DT", "WE", "WR", "WS"				'"HG" moved to 411 (DGS 8/2/16)
+		DynErpOp = 710
+	Case "PE", "PR", "PS", "F", "M", "N", "S", "T", "U", "K", "HG", "V", "W", "P", "CU", "CV"		'"HG" added from 710 (DGS 8/2/16) | "V" and "W" added 9/2/16 GJD  'EC1396 added CU and CV edges
+		DynErpOp = 411
+	Case "B", "X"
+		DynErpOp = 700
+	Case "Q", "Z", "C", "J", "HG", "P", "H", "CQ"													'EC893 added H edge (Knife Trim with Square Corners)  'EC1396 added CQ edge
+		DynErpOp = 510
+	Case Else
+		ReviewText = ReviewText & "Bad EDGTYP passed to TopERPCheck." & vbCrLf
+End Select
+
+If CStr(oDoc.PropertySets.Item("Inventor User Defined Properties").Item("ERP_OPERATION").Value) <> DynErpOp
+	ReviewText = ReviewText & "Not a valid ERP for this EDGTYP." & vbCrLf
+End If
+
+Return ReviewText
+End Function
+
+
+Function PanelERPCheck(oDoc As Document)
+'''Creator: Chris Kuchman
+'''Date Made: 7/31/2018
+'''Description: Takes in a model and checks that the ERP is valid for a panel. Returns the error text.
+
+Try
+	FLIP = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("FLIP").Value
+Catch
+	FLIP = ""
+End Try
+
+If FLIP <> "Y" Then
+	ReviewText = ReviewText & ERPCheck(oDoc, {"460", "500", "600", "620", "700", "750"})
+Else
+	Try
+		ERP = CStr(oDoc.PropertySets.Item("Inventor User Defined Properties").Item("ERP_OPERATION").Value)
+		If ERP <> "441" Then
+			ReviewText = ReviewText & "FLIP of Y needs a ERP of 441" & vbCrLf
+		End If
+	Catch
+		ReviewText = ReviewText & "Not a valid ERP for this part type." & vbCrLf
+	End Try
+End If
+
+Return ReviewText
+End Function
+
+
+Function EDGTHKCheck(oDoc As Document, EDGTYP As String)
+'''Creator: Chris Kuchman
+'''Date Made: 7/31/2018
+'''Description: Takes in a model and the model EDGTYP and checks that the EDGTHK is valid. Returns the error text.
+
+HasEDGTHKiProp = True
+
+Try
+	EDGTHKiProp = Round(CDbl(oDoc.PropertySets.Item("Inventor User Defined Properties").Item("EDGTHK").Value), 3)
+Catch
+	HasEDGTHKiProp = False
+End Try
+	
+'Verify Param and equal to iProp
+MissingEdgeParamCount = 0
+Try
+	EDGTHKParam = Round(oDoc.ComponentDefinition.Parameters.Item("EDGTHK").Value * 0.394, 3) 'cm to in conversion
+Catch
+	MissingEdgeParamCount = MissingEdgeParamCount + 1
+End Try
+Try
+	EDGTHKParam = Round(oDoc.ComponentDefinition.Parameters.Item("EdgThk").Value * 0.394, 3) 'cm to in conversion
+Catch
+	MissingEdgeParamCount = MissingEdgeParamCount + 1
+End Try
+Try
+	EDGTHKParam = Round(oDoc.ComponentDefinition.Parameters.Item("Edgthk").Value * 0.394, 3) 'cm to in conversion
+Catch
+	MissingEdgeParamCount = MissingEdgeParamCount + 1
+End Try
+
+If MissingEdgeParamCount > 2.5 Then
+	HasEDGTHKParam = False
+Else
+	HasEDGTHKParam = True
+End If
+
+If HasEDGTHKiProp And HasEDGTHKParam
+	If EDGTHKiProp <> EDGTHKParam Then ReviewText = ReviewText & "EDGTHK parameter (" & EDGTHKParam & ") isn't equal to EDGTHK iProperty (" & EDGTHKiProp & ")." & vbCrLf
+End If
+
+'Neither active. Will assign EDGTHK based on EDGTYP
+If Not (HasEDGTHKParam Or HasEDGTHKiProp)
+	Select Case EDGTYP
+	Case "AR", "AW", "AY", "B", "BF", "BH", "DB", "DC", "DD", "DR", "DT", "F", "PE", "PR", "PS", "WE", "WR", "WS"
+		ReviewText = ReviewText & "Warning: Your EDGTYP has not been added to the EDGTHK checker as it has likely been discontinued." & vbCrLf
+	Case "M", "N", "S", "T", "U", "K", "V", "W", "P", "CU", "CV"										'EC1396 added CU and CV edges
+		EDGTHKParam = 0.0001
+	Case "C", "X"
+		EDGTHKParam = 0.125
+	Case "HG", "Z"
+		EDGTHKParam = 0.118
+	Case "Q", "J", "CQ"	'Typically 0.059 (1.5mm)														'EC1396 added CQ added
+		EDGTHKParam = 0.059
+	Case Else		'Just picking a default here to avoid crashing later checks. Other errors should be thrown if an EDGTYP hits this.
+		EDGTHKParam = 0.059
+	End Select
+	'Report Error
+	ReviewText = ReviewText & "Neither Edge Thickness (EDGTHK) iProperty nor Parameter could not be found. Not critical, but could aid in modelling" & vbCrLf
+End If
+
+'Verify that EDGTHK is correct
+Select Case EDGTYP
+	Case "AR", "AW", "AY", "B", "BF", "BH", "DB", "DC", "DD", "DR", "DT", "F", "PE", "PR", "PS", "WE", "WR", "WS"
+		ReviewText = ReviewText & "Warning: Your EDGTYP has not been added to the EDGTHK checker as it has likely been discontinued." & vbCrLf
+	Case "M", "N", "S", "T", "U", "K", "V", "W", "P", "CU", "CV"	'Typically 0.0001				'EC1396 added CU and CV edges
+		If EDGTHKParam > 0.001
+			ReviewText = ReviewText & "Your EDGTHK of " & EDGTHKParam & " is not the expected value of 0.0001 based on your EDGTYP: " & EDGTYP & "." & vbCrLf
+		End If
+	Case "C", "HG", "X", "Z"	'Typically 0.125 for C and X and 0.118 (3mm) for HG and Z
+		If (EDGTHKParam > 0.125 Or EDGTHKParam < 0.118)
+			ReviewText = ReviewText & "Your EDGTHK of " & EDGTHKParam & " is not the expected value based on your EDGTYP: " & EDGTYP & "." & vbCrLf
+		End If
+	Case "Q", "J", "CQ"	'Typically 0.059 (1.5mm)													'EC1396 added CQ edge
+		If (EDGTHKParam > 0.06 Or EDGTHKParam < 0.059)
+			ReviewText = ReviewText & "Your EDGTHK of " & EDGTHKParam & " is not the expected value based on your EDGTYP: " & EDGTYP & "." & vbCrLf
+		End If
+	Case Else
+		' return a value with ERROR prefix.
+		ReviewText = ReviewText & " '" & EDGTYP & "' is NOT a Valid Edge Type." & vbCrLf
+End Select
+
+Return ReviewText
+End Function
+
+
+Function TopMATTYPCheck(oDoc As Document, EDGTYP As String)
+'''Creator: Chris Kuchman
+'''Date Made: 7/31/2018
+'''Description: Takes in a model and the model EDGTYP and checks that the MATTYP is valid for a top. Returns the error text.
+
+BadMATTYP = False
+
+Try
+	MATTYP = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("MATTYP").Value
+	Select Case EDGTYP
+		Case "AR", "AW", "AY", "B", "BF", "BH", "DB", "DC", "DD", "DR", "DT", "F", "PE", "PR", "PS", "WE", "WR", "WS", "X"
+			ReviewText = ReviewText & "Warning: Your EDGTYP has not been added to the MATTYP checker as it has likely been discontinued." & vbCrLf
+		Case "M"	'3/4" MDF for MCC or 1-1/8 MDF for regular desks like MDREC
+			If Not MATTYP Like "9MP[12]"
+				ReviewText = ReviewText & "MATTYP of " & MATTYP & " does not correspond with expected MATTYP of 9MP[12]. If this is a Miro Conference it can be 6MP[12] (EDGTYP = " & EDGTYP & ")." & vbCrLf
+			End If
+		Case "V", "W"	'Plywood
+			If Not MATTYP Like "8EB[12]"
+				BadMATTYP = True
+			End If
+		Case "J", "N", "S", "T", "U", "K"	'1-1/8 MDF or plywood
+			Select Case MATTYP
+				Case "9MP1", "9MP2", "8EB", "8DB", "8EB2", "8DB2"	
+					'Matches Expected
+				Case Else
+					BadMATTYP = True
+			End Select
+		Case "C", "Z", "Q", "J"	'Particleboard
+			Select Case MATTYP
+				Case "9P1", "9P2"
+					'Matches Expected
+				Case Else
+					BadMATTYP = True
+			End Select
+		Case "HG"	'Mercury with Builddown
+			If Not MATTYP like "5P1"
+				BadMATTYP = True
+			End If
+		Case "P"	'Comfort Edge
+			If Not MATTYP like "9MDF1"
+				BadMATTYP = True
+			End If
+		Case "CV"																	'EC1396 added CV edge
+			If Not MATTYP like "6EB[12]"
+				BadMATTYP = True
+			End If
+		Case "CU"																	'EC1396 added CU edge
+			If Not MATTYP like "6MP[12]"
+				BadMATTYP = True
+			End If
+		Case "CQ"																	'EC1396 added CQ edge
+			If Not MATTYP like "5P[12]"
+				BadMATTYP = True
+			End If
+		Case Else
+			' return a value with ERROR prefix.
+			ReviewText = ReviewText & EDGTYP & " is NOT a Valid Edge Type." & vbCrLf
+	End Select
+	
+	If BadMATTYP Then
+		ReviewText = ReviewText & "MATTYP of " & MATTYP & " does not correspond with expected MATTYP based on your EDGTYP, '" & EDGTYP & "'." & vbCrLf
+	End If
+Catch
+	ReviewText = ReviewText & "MATTYP iProperty could not be found." & vbCrLf
+End Try
+	
+Return ReviewText
+End Function
+
+
+Function PanelMATTYPCheck(oDoc As Document)
+'''Creator: Chris Kuchman
+'''Date Made: 7/31/2018
+'''Description: Takes in a model and checks that the MATTYP is valid for a panel. Returns the error text.
+
+Try
+	MATTYP = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("MATTYP").Value
+	
+	Select Case MATTYP
+		Case "5P2", "6M2", "6RP2", "9M2"
+			'Okay, Do Nothing
+		Case Else
+			ReviewText = ReviewText & "Not a valid MATTYP for Panel." & vbCrLf
+	End Select
+Catch
+	ReviewText = ReviewText & "MATTYP iProperty could not be found." & vbCrLf
+End Try
+	
+Return ReviewText
+End Function
+
+
+Function StudioOPTCheck(oDoc As Document)
+'''Creator: Chris Kuchman
+'''Date Made: 12/27/2018
+'''Description: This function is used to determine if the studio part uses a valid OPT to create new lots
+
+'Define custom property collection
+oCustomPropertySet = oDoc.PropertySets.Item("Inventor User Defined Properties")
+'Look at each property in the collection
+StudioLot = False
+For Each oCustProp In oCustomPropertySet
+	'Check to see if the iProp is a OPT
+	If oCustProp.Name Like "*OPT*" And CStr(oCustProp.Value) Like "*" & Left(IO.Path.GetFileName(oDoc.FullFileName), 8) & "*" Then
+		StudioLot = True
+	End If
+Next
+
+If Not(StudioLot) Then
+	ReviewText = ReviewText & "This part is missing the studio lot-defining value in a OPT." & vbCrLf
+End If
+
+Return ReviewText
+End Function
+
+
+Function iPropertyExistenceCheck(oDoc As Document, iPropertySet As String())
+'''Creator: Douglas Wisser
+'''Date Made: 06/20/2018
+'''Description: This function is used to determine if properties that are lot defining for a given part type are present.
+
+'Define custom property collection
+oCustomPropertySet = oDoc.PropertySets.Item("Inventor User Defined Properties")
+'Look at each property in the collection
+For i = 0 To iPropertySet.Length - 1
+	iPropertyExists = False
+	For Each oCustProp In oCustomPropertySet
+		If iPropertySet(i) = oCustProp.Name Then 
+			iPropertyExists = True
+		End If
+	Next
+	If Not(iPropertyExists) Then
+		ReviewText = ReviewText & "This part is missing the " & iPropertySet(i) & " iProperty which is a lot-defining segment for this part type." & vbCrLf
+	End If
+Next
+
+Return ReviewText
+End Function
+
+
+Function HardwarePartNameERPCheck(oDoc As Document)
+'''Creator: Chris Kuchman
+'''Date Made: 03/04/2020
+'''Description: This function is used to determine if the ERP was left in the hardware name.
+
+FileName = oDoc.DisplayName
+PartName = oDoc.PropertySets.Item("Design Tracking Properties").Item("Part Number").Value
+
+'Check for ERP in Part Name
+If InStr(PartName, "-E") Then
+	ReviewText = ReviewText & "-E found in Partname, likely was not updated from save" & vbCrLf
+End If
+
+'Check if the ERP in the File name and iProp match
+If InStr(FileName, "-E") Then
+	Try
+		ERP = CStr(oDoc.PropertySets.Item("Inventor User Defined Properties").Item("ERP_OPERATION").Value)
+	
+		ERPLength = Len(FileName) - (InStr(FileName, "-E") + 1)
+		FileNameERP = Right(FileName, ERPLength)
+		
+		If FileNameERP <> ERP Then
+			ReviewText = ReviewText & "The file name ERP and the iProp do not match" & vbCrLf
+		End If
+		
+	Catch
+		ReviewText = ReviewText & "-E found in Partname but no ERP iProp" & vbCrLf
+	End Try
+End If
+
+Return ReviewText
+End Function
+
+
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+''' File Writing Functions ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+
+Function WriteText(File, Text, Optional EndWithNewLines = 2)
+'''Creator: Chris Kuchman
+'''Date Made: 1/27/2016
+'''Date Updated: 2/6/2016 - CAK
+'''Description: This function is used to write text to a text file. The first arguement is the specific text file you
+'''are writing to and the second is the string you want to pass. If you want the string to be broken up into seperate
+'''lines then add a \n to the string line. By default the string will add 2 new lines between each new string added,
+'''but if you want to add less or more new lines then pass a third argument with the number of new lines generated.
+'''(0 will just append the line to the last line)
+
+'Sets a stream to pass the text into the notepad file (filestreams only do btyes so we need a stream writer to convert)
+Dim fs As New System.IO.FileStream(File, System.IO.FileMode.Append, System.IO.FileAccess.Write)
+Dim theLog As New System.IO.StreamWriter(fs)
+
+'Breaks the string up into new lines
+Dim StringArray() As String = Split(Text, "\n ")
+
+'For each split string, write to the file and add a new line (except for the very last line)
+For i As Integer = 0 To StringArray.Length - 1
+	If i < StringArray.Length - 1  Then
+		theLog.WriteLine(StringArray(i))
+	Else
+		theLog.Write(StringArray(i)) 'Write will not add a new line by default like WriteLine
+	End If
+Next
+
+Dim j As Integer = 0
+
+'Add the number of new lines passed into the optional parameter, will loop once if the default value is used
+While EndWithNewLines > j
+	theLog.WriteLine()
+	j += 1
+End While
+​
+'Closes the stream
+theLog.Close()
+End Function
