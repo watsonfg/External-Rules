@@ -109,7 +109,9 @@ If PartPath Like "*\CMN\*" Then
 ElseIf PartName Like "*CUTTOP" Then
 	ReviewText = ReviewText & TopReview(oDoc, ReviewType, StudioNum)
 ElseIf PartName Like "*TSTR*" Then
-	ReviewText = ReviewText & PanelReview(oDoc, ReviewType, StudioNum)	
+	ReviewText = ReviewText & PanelReview(oDoc, ReviewType, StudioNum)
+ElseIf PartName Like "*-AW" Then
+	ReviewText = ReviewText & CompReview(oDoc, ReviewType, StudioNum)
 ElseIf PartName Like "*-AS" Then
 	SteelAsmPart = False
 
@@ -126,15 +128,16 @@ ElseIf PartName Like "*-AS" Then
 	If SteelAsmPart Then
 		ReviewText = ReviewText & SteelAsmReview(oDoc, ReviewType, StudioNum)
 	End If
-	
+ElseIf PartPath Like "*-CF.ipt" Or PartPath Like "*-FB.ipt" Or PartPath Like "*-FAB.ipt" Then  '-CF Correct but FB/FAB included for historic standard
+    ReviewText = ReviewText & CutFabricReview(oDoc, ReviewType, StudioNum)
+ElseIf PartName Like "*-AF" Then
+	ReviewText = ReviewText & FabricAsmReview(oDoc, ReviewType, StudioNum)	
 ElseIf PartName Like "*-PP" Then
 	ReviewText = ReviewText & PowderReview(oDoc, ReviewType, StudioNum)
 ElseIf PartName Like "*-WD" Then
 	ReviewText = ReviewText & WeldReview(oDoc, ReviewType, StudioNum)
 ElseIf PartName Like "*-PM" Then
 	ReviewText = ReviewText & PemReview(oDoc, ReviewType, StudioNum)
-ElseIf PartName Like "*-CF" Then
-    ReviewText = ReviewText & CutFabricReview(oDoc, ReviewType, StudioNum)
 ElseIf PartName Like "*-CP" Then
 	If oDoc.ComponentDefinition.Type = 150995200 Then  'number definition type of a sheet metal file type
 		ReviewText = ReviewText & SheetMetalReview(oDoc, ReviewType, StudioNum)
@@ -241,6 +244,22 @@ End If
 Return ReviewText
 End Function
 
+Function CompReview(oDoc As Document, ReviewType As String, StudioNum As String)
+'''Creator: Chris Kuchman
+'''Date Made: 7/17/2020
+'''Description: This function takes in a model, the type of review, and the studio number (which is blank if none)
+'''and runs comp assembly specific functions. Returns the review text to display.
+
+ReviewText = ReviewText & GeneralReview(oDoc, ReviewType, StudioNum)
+ReviewText = ReviewText & DescriptionCheck(oDoc)
+ReviewText = ReviewText & ERPCheck(oDoc, {"950"})
+ReviewText = ReviewText & SubERPCheck(oDoc, {"630","80"})
+ReviewText = ReviewText & OPTCheck(oDoc, {"STROPT","STROPT2"})
+ReviewText = ReviewText & PrintCheck(oDoc)
+
+Return ReviewText
+End Function
+
 
 Function SteelAsmReview(oDoc As Document, ReviewType As String, StudioNum As String)
 '''Creator: Chris Kuchman
@@ -251,8 +270,10 @@ Function SteelAsmReview(oDoc As Document, ReviewType As String, StudioNum As Str
 ReviewText = ReviewText & GeneralReview(oDoc, ReviewType, StudioNum)
 ReviewText = ReviewText & DescriptionCheck(oDoc)
 ReviewText = ReviewText & ERPCheck(oDoc, {"620","630","950","945","80"})
+ReviewText = ReviewText & SubERPCheck(oDoc, {"790","770","80"})
 ReviewText = ReviewText & OPTCheck(oDoc, {"LEGOPT"})
 ReviewText = ReviewText & PrintCheck(oDoc)
+ReviewText = ReviewText & PrintPartsListCheck(oDoc)
 ReviewText = ReviewText & NETCheck(oDoc)
 ReviewText = ReviewText & PowderOvenCheck(oDoc)
 
@@ -274,8 +295,10 @@ ReviewText = ReviewText & GeneralReview(oDoc, ReviewType, StudioNum)
 ReviewText = ReviewText & DescriptionCheck(oDoc)
 ReviewText = ReviewText & iPropertyExistenceCheck(oDoc, {"POWOPT1","POWOPT2"})
 ReviewText = ReviewText & ERPCheck(oDoc, {"600","620","630","700","750","760","770","790","950","945","80"})
+ReviewText = ReviewText & SubERPCheck(oDoc, {"790","390","80"})
 ReviewText = ReviewText & OPTCheck(oDoc, {"POWOPT1","POWOPT2"})
 ReviewText = ReviewText & PrintCheck(oDoc)
+ReviewText = ReviewText & PrintPartsListCheck(oDoc)
 ReviewText = ReviewText & NETCheck(oDoc)
 ReviewText = ReviewText & PowderOvenCheck(oDoc)
 
@@ -297,8 +320,10 @@ ReviewText = ReviewText & GeneralReview(oDoc, ReviewType, StudioNum)
 ReviewText = ReviewText & DescriptionCheck(oDoc)
 ReviewText = ReviewText & iPropertyExistenceCheck(oDoc, {"WELDOPT1","WELDOPT2"})
 ReviewText = ReviewText & ERPCheck(oDoc, {"340","390"})
+ReviewText = ReviewText & SubERPCheck(oDoc, {"373","370","360","80"})
 ReviewText = ReviewText & OPTCheck(oDoc, {"WELDOPT1","WELDOPT2"})
 ReviewText = ReviewText & PrintCheck(oDoc)
+ReviewText = ReviewText & PrintPartsListCheck(oDoc)
 ReviewText = ReviewText & NETCheck(oDoc)
 
 If ReviewType Like "*Final Reviewer*" Then
@@ -319,8 +344,10 @@ ReviewText = ReviewText & GeneralReview(oDoc, ReviewType, StudioNum)
 ReviewText = ReviewText & DescriptionCheck(oDoc)
 ReviewText = ReviewText & iPropertyExistenceCheck(oDoc, {"PEMOPT1"})
 ReviewText = ReviewText & ERPCheck(oDoc, {"360","370","373","390","770","790","80"})
+ReviewText = ReviewText & SubERPCheck(oDoc, {"340","80"})
 ReviewText = ReviewText & OPTCheck(oDoc, {"PEMOPT1"})
 ReviewText = ReviewText & PrintCheck(oDoc)
+ReviewText = ReviewText & PrintPartsListCheck(oDoc)
 ReviewText = ReviewText & NETCheck(oDoc)
 
 If ReviewType Like "*Final Reviewer*" Then
@@ -375,15 +402,16 @@ End Function
 
 
 Function CutFabricReview(oDoc As Document, ReviewType As String, StudioNum As String)
-'''Creator: Douglas Wisser
-'''Date Made: 
-'''Description: 
-'Run Cut Fabric Functions
+'''Creator: Chris Kuchman
+'''Date Made: 7/17/20 
+'''Description: This function takes in a model, the type of review, and the studio number (which is blank if none)
+'''and runs fabric specific functions. Returns the review text to display.
 
 ReviewText = ReviewText & GeneralReview(oDoc, ReviewType, StudioNum)
 ReviewText = ReviewText & DescriptionCheck(oDoc)
 ReviewText = ReviewText & ERPCheck(oDoc, {"750"})
 ReviewText = ReviewText & iPropertyExistenceCheck(oDoc, {"CUTA","CUTB","FABFIN"})
+ReviewText = ReviewText & FabricRollCheck(oDoc)
 
 'Do check if a studio review and this is a studio part
 If ReviewType Like "*Studio*" And oDoc.FullFileName Like "*" & StudioNum & "*" Then
@@ -409,6 +437,27 @@ ReviewText = ReviewText & iPropertyExistenceCheck(oDoc, {"LENGTH","MATTYP","MITE
 Return ReviewText
 End Function
 
+
+Function FabricAsmReview(oDoc As Document, ReviewType As String, StudioNum As String)
+'''Creator: Chris Kuchman
+'''Date Made: 7/17/20 
+'''Description: This function takes in a model, the type of review, and the studio number (which is blank if none)
+'''and runs fabric assembly specific functions. Returns the review text to display.
+
+ReviewText = ReviewText & GeneralReview(oDoc, ReviewType, StudioNum)
+ReviewText = ReviewText & DescriptionCheck(oDoc)
+ReviewText = ReviewText & ERPCheck(oDoc, {"950"})
+ReviewText = ReviewText & OPTCheck(oDoc, {"FABOPT","FABOPT2"})
+ReviewText = ReviewText & iPropertyExistenceCheck(oDoc, {"NETA","NETB","FABFIN"})
+ReviewText = ReviewText & FabricRollCheck(oDoc)
+
+'Do check if a studio review and this is a studio part
+If ReviewType Like "*Studio*" And oDoc.FullFileName Like "*" & StudioNum & "*" Then
+	ReviewText = ReviewText & StudioOPTCheck(oDoc)
+End If
+
+Return ReviewText
+End Function
 
 '''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 ''' Check Functions '''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
@@ -625,6 +674,30 @@ Return ReviewText
 End Function
 
 
+Function SubERPCheck(oDoc As Document, ERPAllowed As String())
+'''Creator: Chris Kuchman
+'''Date Made: 7/17/2020
+'''Description: This function is used to determine if the components of the file have valid ERPs for the parent
+
+For Each oEachRefDoc In oDoc.ReferencedDocuments
+	'Check the ERP of the part
+	SubReviewText = ERPCheck(oEachRefDoc, ERPAllowed)
+	
+	Try
+		If SubReviewText <> "" Then
+			ReviewText = ReviewText & oEachRefDoc.FullFileName & "- This has a invalid subpart ERP: " & CStr(oEachRefDoc.PropertySets.Item("Inventor User Defined Properties").Item("ERP_OPERATION").Value) & vbCrLf
+		End If
+	Catch
+		ReviewText = ReviewText & oEachRefDoc.FullFileName & "- Error in SubERP Check, likely missing ERP iProp" & vbCrLf
+	End Try
+	
+	SubReviewText = ""
+Next
+
+Return ReviewText
+End Function
+
+
 Function OPTCheck(oDoc As Document, OPTAllowed As String())
 '''Creator: Chris Kuchman
 '''Date Made: 5/17/2018
@@ -680,6 +753,30 @@ If (System.IO.File.Exists(oPath)) Then
 	If oPrintDoc.PropertySets.Item("Design Tracking Properties").Item("Engr Approved By").Value = "" Then
 		ReviewText = ReviewText & "The print is missing the Engr Approved By" & vbCrLf
 	End If
+	
+	oPrintDoc.Close()
+End If
+
+Return ReviewText
+End Function
+
+
+Function PrintPartsListCheck(oDoc As Document)
+'''Creator: Chris Kuchman
+'''Date Made: 9/28/2018
+'''Description: Takes in a model and checks that the print has a parts list. 
+'''Returns the Error text.
+
+oPath = Left(oDoc.FullFileName, (Len(oDoc.FullFileName) - 4)) & ".idw"
+
+If (System.IO.File.Exists(oPath)) Then
+	oPrintDoc = ThisApplication.Documents.Open(oPath,False)
+	
+	If (oPrintDoc.Sheets.Item(1).PartsLists.Count = 0) Then
+		ReviewText = ReviewText & "The print is missing a Parts List" & vbCrLf
+	End If
+	
+	oPrintDoc.Close()
 End If
 
 Return ReviewText
@@ -1187,6 +1284,22 @@ If InStr(FileName, "-E") Then
 	Catch
 		ReviewText = ReviewText & "-E found in Partname but no ERP iProp" & vbCrLf
 	End Try
+End If
+
+Return ReviewText
+End Function
+
+
+Function FabricRollCheck(oDoc As Document)
+'''Creator: Chris Kuchman
+'''Date Made: 07/17/2020
+'''Description: This function is used to determine if the fabric can be cut from a typical roll of fabric
+'''66" is our standard fabric width and 54" for our PET/Rivet
+
+If Val(oDoc.PropertySets.Item("Inventor User Defined Properties").Item("CUTA").Value) > 66 Then
+	ReviewText = "The fabric width exceeds 66'', the roll size for most our fabric" & vbCrLf
+ElseIf Val(oDoc.PropertySets.Item("Inventor User Defined Properties").Item("CUTA").Value) > 54 Then
+	ReviewText = "The fabric width exceeds 54'', the roll size for PET/Rivet" & vbCrLf
 End If
 
 Return ReviewText
