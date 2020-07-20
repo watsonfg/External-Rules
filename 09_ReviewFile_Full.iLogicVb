@@ -1,29 +1,14 @@
-﻿Sub Main()
+Sub Main()
 '['Text File Initialization
 'This text file records if the rule completes and is used as the final file shown
 System.IO.File.WriteAllText("c:\temp\ReviewFile.txt",String.Empty)		'Creates & Clears out a text file to show results
 TextFileReview = "c:\temp\ReviewFile.txt"										'Specifies file name that Review rules write to
 ']
 
-'['Get Document
-TopLevelDoc = ThisApplication.ActiveDocument
-']
-
-'['Generate a "Standard Drawing Rule" File
-'Create standard drawing rule text that parts can be checked against to see
-'if they have non-standard code. Only runs once at top level where the drawing rule
-'is very unlikely to be modified
-
-If System.IO.File.Exists("C:\temp\DrawingRule.txt") = False Then
-	Try
-		System.IO.File.WriteAllText("C:\temp\DrawingRule.txt",GetLogicText(TopLevelDoc, "DRAWING"))
-	Catch
-		MsgBox("Failed to store Drawing Rule Standard")
-	End Try
-End If
-']
 
 '['Body
+TopLevelDoc = ThisApplication.ActiveDocument
+
 'Asks the user for the type of review that they want to do
 Dim ReviewTypeArray As New ArrayList
 ReviewTypeArray.Add("Designer")
@@ -188,10 +173,6 @@ ReviewText = ReviewText & ReferenceCheck(oDoc)
 
 If ReviewType = "Designer" Or (ReviewType = "Studio Designer" And oDoc.FullFileName Like "*" & StudioNum & "*") Then
 	ReviewText = ReviewText & DateCheck(oDoc)
-End If
-
-If ReviewType Like "*Reviewer*" Then
-	ReviewText = ReviewText & NonStandardDrawingRuleCheck(oDoc)
 End If
 
 Return ReviewText
@@ -1325,23 +1306,6 @@ Return ReviewText
 End Function
 
 
-Function NonStandardDrawingRuleCheck(oDoc As Document)
-'''Creator: Chris Kuchman
-'''Date Made: 07/17/2020
-'''Description: This function is used to determine if the drawing rule deviates from the standard format and flags it to
-'''reviewers to be checked. The reviewer must have the standard stored in a txt file in their temp folder. Because a error in a
-'''template, some drawings start with a extra ' so the rule only checks for differences past that.
-
-If System.IO.File.Exists("C:\temp\DrawingRule.txt") = True Then
-	If Not GetLogicText(oDoc, "DRAWING").EndsWith(System.IO.File.ReadAllText("C:\temp\DrawingRule.txt")) Then
-		ReviewText = "The drawing rule doesn't match the standard code, worth checking that it is working properly" & vbCrLf
-	End If
-End If
-
-Return ReviewText
-End Function
-
-
 '''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 ''' File Writing Functions ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 '''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
@@ -1383,34 +1347,4 @@ End While
 ​
 'Closes the stream
 theLog.Close()
-End Function
-
-'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-''' General Functions '''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-'''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-
-Function GetLogicText(oDoc As Document, ruleName As String) As String
-	'''Creator: Chris Kuchman
-	'''Date Made: 6/9/2020
-	'''Date Updated: 6/12/2020 - CAK
-	'''Description: Returns a string of the rule code matching the name specified in the document passed in. If the rule name does not match
-	'''any rules in the document then it returns a blank string.
-	
-	'Checks for the iLogic Addin and the Autommaton variable
-	Try
-		iLogicAddin = ThisApplication.ApplicationAddIns.ItemById("{3bdd8d79-2179-4b11-8a5a-257b1c0263ac}")
-		iLogicAutomation = iLogicAddin.Automation
-	Catch ex As Exception
-		MessageBox.Show("Unable to set variable iLogicAutomation or iLogic Add-in Missing.", "Function GetLogicText")
-		Return ""
-	End Try
-	
-	'Try to open the rule to read the text
-	Try
-		LogicText = iLogicAutomation.GetRule(oDoc, ruleName).Text
-	Catch
-		'Skip if fails to find the rule
-	End Try
-	
-	Return LogicText
 End Function
