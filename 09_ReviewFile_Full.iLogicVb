@@ -1,4 +1,4 @@
-Sub Main()
+﻿Sub Main()
 '['Text File Initialization
 'This text file records if the rule completes and is used as the final file shown
 System.IO.File.WriteAllText("c:\temp\ReviewFile.txt",String.Empty)		'Creates & Clears out a text file to show results
@@ -170,6 +170,7 @@ ReviewText = ReviewText & AuthorDesignerCheck(oDoc, ReviewType, StudioNum)
 ReviewText = ReviewText & RevCheck(oDoc)
 ReviewText = ReviewText & ProjectCheck(oDoc)
 ReviewText = ReviewText & ReferenceCheck(oDoc)
+ReviewText = ReviewText & BreadboxHardwareCheck(oDoc)
 
 If ReviewType = "Designer" Or (ReviewType = "Studio Designer" And oDoc.FullFileName Like "*" & StudioNum & "*") Then
 	ReviewText = ReviewText & DateCheck(oDoc)
@@ -325,6 +326,7 @@ ReviewText = ReviewText & OPTCheck(oDoc, {"WELDOPT1","WELDOPT2"})
 ReviewText = ReviewText & PrintCheck(oDoc)
 ReviewText = ReviewText & PrintPartsListCheck(oDoc)
 ReviewText = ReviewText & NETCheck(oDoc)
+ReviewText = ReviewText & WeldGaugeDiffCheck(oDoc)
 
 If ReviewType Like "*Final Reviewer*" Then
 	ReviewText = ReviewText & PrintApprovalCheck(oDoc)
@@ -1301,6 +1303,99 @@ If Val(oDoc.PropertySets.Item("Inventor User Defined Properties").Item("CUTA").V
 ElseIf Val(oDoc.PropertySets.Item("Inventor User Defined Properties").Item("CUTA").Value) > 54 Then
 	ReviewText = "The fabric width exceeds 54'', the roll size for PET/Rivet" & vbCrLf
 End If
+
+Return ReviewText
+End Function
+
+
+Function BreadboxHardwareCheck(oDoc As Document)
+'''Creator: Chris Kuchman
+'''Date Made: 07/20/2020
+'''Description: This function is used to determine if the part going to hardware is a reasonable size,
+'''vaguely assigned as smaller than a breadbox (really a shoebox because who has a breadbox?). Will only
+'''check if the part has NETs or a length
+
+If CStr(oDoc.PropertySets.Item("Inventor User Defined Properties").Item("ERP_OPERATION").Value) = "80" Then
+	Try
+		LengthDim = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("LENGTH").Value
+		
+		If LengthDim > 14 Then
+			ReviewText = ReviewText & "The LENGTH dim is " & LengthDim & " which is a bit long for a hardware item (ideally under 14)" & vbCrLf
+		End If
+	Catch
+		Try	
+			Dim NetDimensions As Double() = {oDoc.PropertySets.Item("Inventor User Defined Properties").Item("NETDEPTH").Value,
+											oDoc.PropertySets.Item("Inventor User Defined Properties").Item("NETHEIGHT").Value,
+											oDoc.PropertySets.Item("Inventor User Defined Properties").Item("NETWIDTH").Value}
+		
+			'Sorts the array from smallest to largest so that orientation doesnt matter
+			Array.Sort(NetDimensions)
+			
+			If NetDimensions(0) > 5 Then
+				ReviewText = ReviewText & "The smallest NET dim is " & NetDimensions(0) & " which is a bit tall for a hardware item (ideally under 14)" & vbCrLf
+			End If
+			
+			If NetDimensions(1) > 56 Then
+				ReviewText = ReviewText & "The second smallest NET dim is " & NetDimensions(1) & " which is a bit wide for a hardware item (ideally under 10)" & vbCrLf
+			End If
+			
+			If NetDimensions(2) > 96 Then
+				ReviewText = ReviewText & "The largest NET dim is " & NetDimensions(2) & " which is a bit long for a hardware item (ideally under 14)" & vbCrLf
+			End If
+			
+		Catch
+			ReviewText = ReviewText & "Unable to determine if the part is smaller than a breadbox" & vbCrLf
+		End Try
+	End Try
+End If
+
+Return ReviewText
+End Function
+
+
+Function WeldGaugeDiffCheck(oAsmDoc As AssemblyDocument)
+'''Creator: Chris Kuchman
+'''Date Made: 07/20/2020
+'''Description: This function is used to determine if a weld assembly contains a large deviation of
+'''gauges which might cause major burn-thru issues. A engineer will still need to check for the smaller
+'''range for cosmetic warping and smaller burn-thru
+
+    'Get the assembly component definition.
+    Dim oAsmDef As AssemblyComponentDefinition
+    oAsmDef = oAsmDoc.ComponentDefinition
+
+    'Get all of the leaf occurrences of the assembly.
+    Dim oLeafOccs As ComponentOccurrencesEnumerator
+    oLeafOccs = oAsmDef.Occurrences.AllLeafOccurrences
+
+    'Iterate through the occurrences and print the name.
+    Dim oOcc As ComponentOccurrence
+	
+	'Set the default for smallest and largest thickness
+	minThickness = 999
+	maxThickness = 0
+	
+	'Find the thickest and thinnest sheet metal used
+    For Each oOcc In oLeafOccs
+		Try
+			If oOcc.Definition.Type = 150995200 Then			
+				If oOcc.Definition.Thickness.Value < minThickness Then
+					minThickness = oOcc.Definition.Thickness.Value
+				End If
+				
+				If oOcc.Definition.Thickness.Value > maxThickness Then
+					maxThickness = oOcc.Definition.Thickness.Value
+				End If
+			End If
+		Catch
+			'Ignore errored part
+		End Try
+    Next
+	
+	'Check if the assembly contains a large different in gauges in the weld assembly
+	If maxThickness * .5 > minThickness Then
+		ReviewText = ReviewText & "The weld uses largely different gauges, this will increase chances of blowout" & vbCrLf
+	End If
 
 Return ReviewText
 End Function
