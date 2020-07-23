@@ -206,6 +206,7 @@ ReviewText = ReviewText & EDGSEQCheck(oDoc)
 ReviewText = ReviewText & ExportCheck(oDoc)
 EDGTYPArray = EDGTYPCheck(oDoc)	'Brings back two values, (0) is the EDGTYP or MISSING if not present, (1) is the reviewtext 
 ReviewText = ReviewText & EDGTYPArray(1)
+ReviewText = ReviewText & DrillHoleFlatBottomCheck(oDoc)
 
 'Do checks that require the EDGTYP
 If EDGTYPArray(0) <> "MISSING" Then
@@ -236,6 +237,8 @@ ReviewText = ReviewText & EDGSEQCheck(oDoc)
 ReviewText = ReviewText & EDGTHKCheck(oDoc, "Q")
 ReviewText = ReviewText & PanelERPCheck(oDoc)
 ReviewText = ReviewText & ExportCheck(oDoc)
+ReviewText = ReviewText & DrillHoleFlatBottomCheck(oDoc)
+ReviewText = ReviewText & PanelFlipCheck(oDoc)
 
 'Do check if a studio review and this is a studio part
 If ReviewType Like "*Studio*" And oDoc.FullFileName Like "*" & StudioNum & "*" Then
@@ -1396,6 +1399,100 @@ Function WeldGaugeDiffCheck(oAsmDoc As AssemblyDocument)
 	If maxThickness * .5 > minThickness Then
 		ReviewText = ReviewText & "The weld uses largely different gauges, this will increase chances of blowout" & vbCrLf
 	End If
+
+Return ReviewText
+End Function
+
+
+Function DrillHoleFlatBottomCheck(oPartDoc As PartDocument)
+'''Creator: Chris Kuchman
+'''Date Made: 07/20/2020
+'''Description: This function is used to determine if all of the holes of a panel uses a flat tip, as the angled drill tip results
+'''in a deeper drilled hole when programmed for the router.
+
+oHoles = oPartDoc.ComponentDefinition.Features.HoleFeatures
+
+ActivePointedHole = False
+
+For Each oHole In oHoles
+	If Not oHole.FlatBottom Then
+		ActivePointedHole = True
+	End If
+Next
+
+If ActivePointedHole Then
+	ReviewText = ReviewText & "Hole with the pointed drill setting, standard is all flat holes." & vbCrLf
+End If
+
+Return ReviewText
+End Function
+
+
+Function PanelFlipCheck(oPartDoc As PartDocument)
+'''Creator: Chris Kuchman
+'''Date Made: 07/20/2020
+'''Description: This function is used to determine if a wood panel has holes and cutouts coming from both sides and require a flip.
+'''It then checks if the proper flip iProp is set.
+
+ActiveFlip = False
+
+Try
+
+	'Check all holes to determine if they are the opposite side
+	oHoles = oPartDoc.ComponentDefinition.Features.HoleFeatures
+	
+	Dim zResults As New List(Of Integer)
+	
+	For Each oHole In oHoles
+	
+		'Checks if the hole is not a through all
+		If Not oHole.ExtentType = 20743 And Not oHole.Suppressed Then
+		
+			'Gets the Z axis position
+			zPos = oHole.FeatureDimensions.Item(1).TextPoint.Z
+			
+			'If the Z axis depth hasn't been recorded then 
+			If Not zResults.Contains(zPos) Then
+				zResults.Add(zPos)
+			End If
+		End If
+	Next
+	
+	
+	'Check all extrudes
+	oExtrudes = oPartDoc.ComponentDefinition.Features.ExtrudeFeatures
+	
+	For Each oExtrude In oExtrudes
+	
+		'Checks if the extrude is a cut and not a through-all cut
+		If oExtrude.Operation = 20482 And Not oExtrude.Suppressed And Not oExtrude.Definition.ExtentType = 20743 Then
+			SketchZPos = oExtrude.Definition.Profile.Parent.SketchPoints.Item(1).Geometry3d.Z
+			
+			'If the Z axis depth hasn't been recorded then 
+			If Not zResults.Contains(SketchZPos) Then
+				zResults.Add(SketchZPos)
+			End If
+		End If
+	Next
+	
+	'If multiple depths found then flip needed
+	If zResults.Count > 1 Then
+		ActiveFlip = True
+	End If
+	
+	Try 
+		FlipSetting = oPartDoc.PropertySets.Item("Inventor User Defined Properties").Item("FLIP").Value
+	Catch
+		FlipSetting = "N"
+	End Try
+		
+	If ActiveFlip And Not FlipSetting = "Y" Then
+		ReviewText = ReviewText & "Part appears to need a flip but FLIP not set to Y." & vbCrLf
+	End If
+
+Catch
+	ReviewText = ReviewText & "Flip could not be checked." & vbCrLf
+End Try
 
 Return ReviewText
 End Function
