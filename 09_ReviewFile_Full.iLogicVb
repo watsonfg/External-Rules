@@ -14,6 +14,9 @@ Dim ReviewTypeArray As New ArrayList
 ReviewTypeArray.Add("Designer")
 ReviewTypeArray.Add("Reviewer")
 ReviewTypeArray.Add("Final Reviewer")
+ReviewTypeArray.Add("EC Designer")
+ReviewTypeArray.Add("EC Reviewer")
+ReviewTypeArray.Add("EC Final Reviewer")
 ReviewTypeArray.Add("Studio Designer")
 ReviewTypeArray.Add("Studio Reviewer")
 ReviewTypeArray.Add("Studio Final Reviewer")
@@ -165,14 +168,13 @@ Function GeneralReview(oDoc As Document, ReviewType As String, StudioNum As Stri
 
 'Runs the review functions on the part passed in
 ReviewText = ReviewText & PartNameLengthCheck(oDoc)
-ReviewText = ReviewText & PartNameStructureCheck(oDoc)
 ReviewText = ReviewText & AuthorDesignerCheck(oDoc, ReviewType, StudioNum)
 ReviewText = ReviewText & RevCheck(oDoc)
 ReviewText = ReviewText & ProjectCheck(oDoc)
 ReviewText = ReviewText & ReferenceCheck(oDoc)
 ReviewText = ReviewText & BreadboxHardwareCheck(oDoc)
 
-If ReviewType = "Designer" Or (ReviewType = "Studio Designer" And oDoc.FullFileName Like "*" & StudioNum & "*") Then
+If ReviewType = "Designer" Or ReviewType = "EC Designer" Or (ReviewType = "Studio Designer" And oDoc.FullFileName Like "*" & StudioNum & "*") Then
 	ReviewText = ReviewText & DateCheck(oDoc)
 End If
 
@@ -259,7 +261,11 @@ ReviewText = ReviewText & DescriptionCheck(oDoc)
 ReviewText = ReviewText & ERPCheck(oDoc, {"950"})
 ReviewText = ReviewText & SubERPCheck(oDoc, {"630","80"})
 ReviewText = ReviewText & OPTCheck(oDoc, {"STROPT","STROPT2"})
-ReviewText = ReviewText & PrintCheck(oDoc)
+
+'Do certain checks on new models
+If Not (ReviewType Like "*Studio*" Or ReviewType Like "*EC*") Then
+	ReviewText = ReviewText & PartNameStructureCheck(oDoc)
+End If
 
 Return ReviewText
 End Function
@@ -283,6 +289,11 @@ ReviewText = ReviewText & PowderOvenCheck(oDoc)
 
 If ReviewType Like "*Final Reviewer*" Then
 	ReviewText = ReviewText & PrintApprovalCheck(oDoc)
+End If
+
+'Do certain checks on new models
+If Not ReviewType Like "*Studio*" Then
+	ReviewText = ReviewText & PartNameStructureCheck(oDoc)
 End If
 
 Return ReviewText
@@ -310,6 +321,11 @@ If ReviewType Like "*Final Reviewer*" Then
 	ReviewText = ReviewText & PrintApprovalCheck(oDoc)
 End If
 
+'Do certain checks on new models
+If Not (ReviewType Like "*Studio*" Or ReviewType Like "*EC*") Then
+	ReviewText = ReviewText & PartNameStructureCheck(oDoc)
+End If
+
 Return ReviewText
 End Function
 
@@ -333,6 +349,11 @@ ReviewText = ReviewText & WeldGaugeDiffCheck(oDoc)
 
 If ReviewType Like "*Final Reviewer*" Then
 	ReviewText = ReviewText & PrintApprovalCheck(oDoc)
+End If
+
+'Do certain checks on new models
+If Not (ReviewType Like "*Studio*" Or ReviewType Like "*EC*") Then
+	ReviewText = ReviewText & PartNameStructureCheck(oDoc)
 End If
 
 Return ReviewText
@@ -359,6 +380,11 @@ If ReviewType Like "*Final Reviewer*" Then
 	ReviewText = ReviewText & PrintApprovalCheck(oDoc)
 End If
 
+'Do certain checks on new models
+If Not (ReviewType Like "*Studio*" Or ReviewType Like "*EC*") Then
+	ReviewText = ReviewText & PartNameStructureCheck(oDoc)
+End If
+
 Return ReviewText
 End Function
 
@@ -379,6 +405,11 @@ ReviewText = ReviewText & NETCheck(oDoc)
 
 If ReviewType Like "*Final Reviewer*" Then
 	ReviewText = ReviewText & PrintApprovalCheck(oDoc)
+End If
+
+'Do certain checks on new models
+If Not (ReviewType Like "*Studio*" Or ReviewType Like "*EC*") Then
+	ReviewText = ReviewText & PartNameStructureCheck(oDoc)
 End If
 
 Return ReviewText
@@ -439,6 +470,11 @@ ReviewText = ReviewText & ERPCheck(oDoc, {"340","360","370","390"})
 ReviewText = ReviewText & OPTCheck(oDoc, {"CTOPT1","CTOPT2"})
 ReviewText = ReviewText & iPropertyExistenceCheck(oDoc, {"LENGTH","MATTYP","MITERANGLEA","MITERANGLEB","CTOPT1","CTOPT2"})
 
+'Do certain checks on new models
+If Not (ReviewType Like "*Studio*" Or ReviewType Like "*EC*") Then
+	ReviewText = ReviewText & PartNameStructureCheck(oDoc)
+End If
+
 Return ReviewText
 End Function
 
@@ -451,14 +487,19 @@ Function FabricAsmReview(oDoc As Document, ReviewType As String, StudioNum As St
 
 ReviewText = ReviewText & GeneralReview(oDoc, ReviewType, StudioNum)
 ReviewText = ReviewText & DescriptionCheck(oDoc)
-ReviewText = ReviewText & ERPCheck(oDoc, {"950"})
+ReviewText = ReviewText & ERPCheck(oDoc, {"950", "630"})
+ReviewText = ReviewText & SubERPCheck(oDoc, {"750","80"})
 ReviewText = ReviewText & OPTCheck(oDoc, {"FABOPT","FABOPT2"})
 ReviewText = ReviewText & iPropertyExistenceCheck(oDoc, {"NETA","NETB","FABFIN"})
-ReviewText = ReviewText & FabricRollCheck(oDoc)
 
 'Do check if a studio review and this is a studio part
 If ReviewType Like "*Studio*" And oDoc.FullFileName Like "*" & StudioNum & "*" Then
 	ReviewText = ReviewText & StudioOPTCheck(oDoc)
+End If
+
+'Do certain checks on new models
+If Not (ReviewType Like "*Studio*" Or ReviewType Like "*EC*") Then
+	ReviewText = ReviewText & PartNameStructureCheck(oDoc)
 End If
 
 Return ReviewText
@@ -499,11 +540,11 @@ If PartName Like "*-*-[A-Z][A-Z]" Then
 	Middle = Mid(PartName, Len(Product) + 2, Len(PartName) - Len(Extension) - Len(Product) - 2)
 	
 	If Len(Middle) > 3 Then
-		ReviewText = ReviewText & "Part Number's middle section " & Middle & " is greater than 3, can cause studio copy out issues" & vbCrLf
+		ReviewText = ReviewText & "Part Name's middle section " & Middle & " is greater than 3, can cause studio copy out issues" & vbCrLf
 	End If
 	
 Else
-	ReviewText = ReviewText & "Part Number is not in proper *-*-* form" & vbCrLf
+	ReviewText = ReviewText & "Part Name is not in proper *-*-* form" & vbCrLf
 End If
 
 Return ReviewText
@@ -913,7 +954,7 @@ Function EDGSEQCheck(oDoc As Document)
 Try
 	EDGSEQ = oDoc.PropertySets.Item("Inventor User Defined Properties").Item("EDGSEQ").Value
 	Select Case EDGSEQ
-		Case "1A", "1A1B", "1A1BC", "1A2B", "1A2BC", "1AC", "1B", "1B1A", "1B1AC", "1B2A", "1B2AC", "1BC", "2A", "2A1B", "2A1BC", "2A2B", "2A2BC", "2AC", "2B", "2B1A", "2B1AC", "2B2A", "2B2AC", "2BC", "ALL"
+		Case "NONE", "1A", "1A1B", "1A1BC", "1A2B", "1A2BC", "1AC", "1B", "1B1A", "1B1AC", "1B2A", "1B2AC", "1BC", "2A", "2A1B", "2A1BC", "2A2B", "2A2BC", "2AC", "2B", "2B1A", "2B1AC", "2B2A", "2B2AC", "2BC", "ALL"
 			'Valid EDGSEQ
 		Case Else
 			ReviewText = ReviewText & "EDGSEQ (" & EDGSEQ & ") is not a valid choice." & vbCrLf
@@ -1301,11 +1342,15 @@ Function FabricRollCheck(oDoc As Document)
 '''Description: This function is used to determine if the fabric can be cut from a typical roll of fabric
 '''66" is our standard fabric width and 54" for our PET/Rivet
 
-If Val(oDoc.PropertySets.Item("Inventor User Defined Properties").Item("CUTA").Value) > 66 Then
-	ReviewText = "The fabric width exceeds 66'', the roll size for most our fabric" & vbCrLf
-ElseIf Val(oDoc.PropertySets.Item("Inventor User Defined Properties").Item("CUTA").Value) > 54 Then
-	ReviewText = "The fabric width exceeds 54'', the roll size for PET/Rivet" & vbCrLf
-End If
+Try
+	If Val(oDoc.PropertySets.Item("Inventor User Defined Properties").Item("CUTA").Value) > 66 Then
+		ReviewText = "The fabric width exceeds 66'', the roll size for most our fabric" & vbCrLf
+	ElseIf Val(oDoc.PropertySets.Item("Inventor User Defined Properties").Item("CUTA").Value) > 54 Then
+		ReviewText = "The fabric width exceeds 54'', the roll size for PET/Rivet" & vbCrLf
+	End If
+Catch
+	ReviewText = "Unable to find a CUTA for the fabric roll check" & vbCrLf
+End Try
 
 Return ReviewText
 End Function
