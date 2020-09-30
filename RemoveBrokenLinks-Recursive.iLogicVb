@@ -1,0 +1,92 @@
+﻿Sub Main
+
+Dim oDoc As Document
+
+oDoc = ThisApplication.ActiveDocument
+
+RecursivePurge(oDoc)
+
+End Sub
+
+Sub RecursivePurge(oDoc As Document)
+'''Creator: Douglas Wisser
+'''Date Made: 07/10/2020
+'''Description: This function takes in a model and purges all broken bitmap links (a possible culprit for slow opening models)
+
+Dim oEachRefDoc As Document
+
+For Each oEachRefDoc In oDoc.ReferencedDocuments
+	RecursivePurge(oEachRefDoc)
+Next
+
+BreakLinks(oDoc)
+
+PurgeStyle(oDoc)
+
+End Sub
+
+Sub BreakLinks(oDoc As Document)
+	
+If oDoc.ReferencedOLEFileDescriptors.Count = 0 Then
+	Logger.Error("There aren't any OLE references in this document.", "Ain't no References")
+    Exit Sub
+End If
+
+Dim aOLERefs() As ReferencedOLEFileDescriptor
+ReDim aOLERefs(oDoc.ReferencedOLEFileDescriptors.Count - 1)
+    
+Dim iRefCount As Integer
+iRefCount = oDoc.ReferencedOLEFileDescriptors.Count
+
+Dim i As Integer
+For i = 1 To iRefCount
+	aOLERefs(i - 1) = oDoc.ReferencedOLEFileDescriptors.Item(i)
+Next i
+
+For i = 1 To iRefCount
+	If Right(aOLERefs(i - 1).FullFileName, 4) = ".BMP" Or Right(aOLERefs(i - 1).FullFileName, 4) = ".bmp" Then aOLERefs(i - 1).Delete
+Next i
+
+End Sub
+
+Sub PurgeStyle(doc As Document)
+	If (doc.DocumentType = DocumentTypeEnum.kDrawingDocumentObject) Then
+	    Dim dDoc As DrawingDocument = doc
+	    Dim styles As Styles = dDoc.StylesManager.Styles
+	    For Each styl As Style In styles
+	        If (styl.InUse = False And styl.StyleLocation <> StyleLocationEnum.kLibraryStyleLocation) Then
+	            styl.Delete()
+	        End If
+	    Next
+	ElseIf (doc.DocumentType = DocumentTypeEnum.kPartDocumentObject Or doc.DocumentType = DocumentTypeEnum.kAssemblyDocumentObject) Then
+	    For Each asset As Asset In doc.Assets
+	        If (Asset.IsUsed = False) Then
+	            If (Asset.AssetType = AssetTypeEnum.kAssetTypeMaterial Or
+	                    Asset.AssetType = AssetTypeEnum.kAssetTypeAppearance) Then
+	                Asset.Delete()
+	            End If
+	        End If
+	    Next
+	End If
+
+	'---Execute twice---
+
+	If (doc.DocumentType = DocumentTypeEnum.kDrawingDocumentObject) Then
+	    Dim dDoc As DrawingDocument = doc
+	    Dim styles As Styles = dDoc.StylesManager.Styles
+	    For Each styl As Style In styles
+	        If (styl.InUse = False And styl.StyleLocation <> StyleLocationEnum.kLibraryStyleLocation) Then
+	            styl.Delete()
+	        End If
+	    Next
+	ElseIf (doc.DocumentType = DocumentTypeEnum.kPartDocumentObject Or doc.DocumentType = DocumentTypeEnum.kAssemblyDocumentObject) Then
+	    For Each asset As Asset In doc.Assets
+	        If (Asset.IsUsed = False) Then
+	            If (Asset.AssetType = AssetTypeEnum.kAssetTypeMaterial Or
+	                    Asset.AssetType = AssetTypeEnum.kAssetTypeAppearance) Then
+	                Asset.Delete()
+	            End If
+	        End If
+	    Next
+	End If
+End Sub
